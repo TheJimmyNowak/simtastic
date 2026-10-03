@@ -36,6 +36,29 @@ class SimulationCancelled(Exception):
     """Anulowanie startu symulacji (np. force_stop podczas _start_blocking)."""
 
 
+_TRANSIENT_STATUSES = {
+    ScenarioStatus.PRECOMPUTING,
+    ScenarioStatus.STARTING,
+    ScenarioStatus.RUNNING,
+    ScenarioStatus.STOPPING,
+}
+
+
+def idle_status(scenario_id: str) -> ScenarioStatus:
+    """Status bezczynnego scenariusza: LINKS_READY, gdy macierz ITM jest aktualna."""
+    scenario = scenario_store.get(scenario_id)
+    matrix = load_link_matrix(scenario_id)
+    if (
+        scenario is not None
+        and matrix is not None
+        and matrix.node_ids == [node.id for node in scenario.nodes]
+        and matrix.scenario_fingerprint
+        == compute_scenario_fingerprint(scenario.nodes, scenario.environment)
+    ):
+        return ScenarioStatus.LINKS_READY
+    return ScenarioStatus.DRAFT
+
+
 class SimulationManager:
     def __init__(self) -> None:
         self.active_scenario_id: Optional[str] = None
@@ -98,7 +121,7 @@ class SimulationManager:
                 self._start_blocking(scenario_id, traffic_path)
             except SimulationCancelled:
                 logger.info("Simulation start cancelled for %s", scenario_id)
-                scenario_store.set_status(scenario_id, ScenarioStatus.STOPPED, None)
+                scenario_store.set_status(scenario_id, idle_status(scenario_id), None)
                 self.stop()
             except Exception as exc:
                 logger.exception("Simulation start failed")
@@ -149,15 +172,10 @@ class SimulationManager:
         for i, node in enumerate(scenario.nodes):
             if self._cancel_start.is_set():
                 raise SimulationCancelled()
-            host = node.tcp_host or settings.meshtastic_tcp_host
             if self._shards:
                 host, port = self._shards.tcp_endpoint(i)
-                if node.tcp_host:
-                    host = node.tcp_host
-                if node.tcp_port:
-                    port = node.tcp_port
             else:
-                port = node.tcp_port or (settings.tcp_port_base + i)
+                host, port = settings.meshtastic_tcp_host, settings.tcp_port_base + i
             scenario_store.set_itm_progress(scenario_id, i, len(scenario.nodes))
             wait_for_tcp_port(host, port, timeout=timeout)
             prov_iface = open_tcp_interface(host, port, timeout=timeout)
@@ -181,7 +199,7 @@ class SimulationManager:
             iface = open_tcp_interface(host, port, timeout=timeout)
             wait_for_mesh_connected(iface, timeout=connect_timeout)
             verify_provisioning(iface, node, env.preset)
-            gateway.attach_node(node.id, iface, i)
+            gateway.attach_node(node.id, iface, i, endpoint=(host, port))
             logger.info("Attached gateway to node %s on port %s", node.id, port)
 
     def _start_traffic(
@@ -286,7 +304,7 @@ class SimulationManager:
             influx_writer.set_run_context(None)
             influx_writer.stop()
             if sid:
-                scenario_store.set_status(sid, ScenarioStatus.STOPPED)
+                scenario_store.set_status(sid, idle_status(sid))
             self.active_scenario_id = None
 
     def force_stop(self, scenario_id: str) -> list[str]:
@@ -300,9 +318,25 @@ class SimulationManager:
                 )
         self.stop()
         removed = ShardManager.cleanup_scenario_containers(scenario_id)
-        scenario_store.set_status(scenario_id, ScenarioStatus.STOPPED)
+        scenario_store.set_status(scenario_id, idle_status(scenario_id))
         self._cancel_start.clear()
         return removed
+
+    def recover_after_restart(self) -> None:
+        """Po restarcie procesu stan w pamięci przepadł: zwolnij scenariusze i kontenery."""
+        for scenario in scenario_store.list_all():
+            if scenario.status in _TRANSIENT_STATUSES:
+                logger.warning(
+                    "Scenario %s was %s before restart; resetting", scenario.id, scenario.status.value
+                )
+                scenario_store.set_status(scenario.id, idle_status(scenario.id))
+        try:
+            removed = ShardManager.cleanup_all_sim_containers()
+        except Exception as exc:
+            logger.warning("Orphan container cleanup skipped: %s", exc)
+            return
+        if removed:
+            logger.warning("Removed orphan simulator containers: %s", ", ".join(removed))
 
     def status(self) -> dict:
         return {

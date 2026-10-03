@@ -10,7 +10,7 @@ from app.models.scenario import ScenarioStatus
 from app.services.propagation.link_matrix import load_link_matrix
 from app.services.scenario_store import scenario_store
 from app.services.shard_manager import ShardManager
-from app.services.simulation_manager import simulation_manager
+from app.services.simulation_manager import idle_status, simulation_manager
 
 router = APIRouter(prefix="/api/scenarios/{scenario_id}", tags=["simulation"])
 
@@ -98,7 +98,7 @@ def cleanup_scenario_containers(scenario_id: str) -> dict:
     if not scenario_store.get(scenario_id):
         raise HTTPException(404, "Scenario not found")
     removed = ShardManager.cleanup_scenario_containers(scenario_id)
-    scenario_store.set_status(scenario_id, ScenarioStatus.STOPPED)
+    scenario_store.set_status(scenario_id, idle_status(scenario_id))
     return {"containers_removed": removed}
 
 

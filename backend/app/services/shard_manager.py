@@ -13,6 +13,9 @@ from app.models.node import NodeConfig
 logger = logging.getLogger(__name__)
 
 MESHTASTICD = "meshtasticd"
+# Etykiety identyfikują kontenery symulatora — sprzątanie nie opiera się na prefiksie nazwy.
+LABEL_APP = "mesh-sim"
+LABEL_SCENARIO = "mesh-sim.scenario"
 
 
 def _docker_client() -> docker.DockerClient:
@@ -39,7 +42,7 @@ class ShardManager:
         self.shards: list[ShardInfo] = []
 
     def _container_name(self, shard_id: int) -> str:
-        return f"sim-{self.scenario_id[:8]}-shard-{shard_id}"
+        return f"sim-{self.scenario_id}-shard-{shard_id}"
 
     def tcp_endpoint(self, node_index: int) -> tuple[str, int]:
         """Host/port for Meshtastic TCP from the backend container."""
@@ -130,8 +133,6 @@ class ShardManager:
         for i, node in enumerate(chunk):
             global_i = base_index + i
             port = settings.tcp_port_base + global_i
-            node.tcp_port = port
-            node.tcp_host = info.container_name
             port_map[f"{port}/tcp"] = port
 
         self._remove_container(client, info.container_name)
@@ -141,6 +142,7 @@ class ShardManager:
             "command": ["sh", "-c", "while true; do sleep 3600; done"],
             "name": info.container_name,
             "detach": True,
+            "labels": {LABEL_APP: "1", LABEL_SCENARIO: self.scenario_id},
             "ports": port_map,
         }
         try:
@@ -198,31 +200,24 @@ class ShardManager:
         self.shards.clear()
 
     @staticmethod
-    def cleanup_scenario_containers(scenario_id: str) -> list[str]:
+    def _remove_labeled(label: str) -> list[str]:
         if settings.dry_run:
             return []
         client = _docker_client()
-        prefix = f"sim-{scenario_id[:8]}-shard-"
         removed: list[str] = []
-        for c in client.containers.list(all=True):
-            if c.name.startswith(prefix):
-                c.remove(force=True)
-                removed.append(c.name)
-                logger.info("Removed container %s", c.name)
+        for c in client.containers.list(all=True, filters={"label": label}):
+            c.remove(force=True)
+            removed.append(c.name)
+            logger.info("Removed container %s", c.name)
         return removed
 
     @staticmethod
+    def cleanup_scenario_containers(scenario_id: str) -> list[str]:
+        return ShardManager._remove_labeled(f"{LABEL_SCENARIO}={scenario_id}")
+
+    @staticmethod
     def cleanup_all_sim_containers() -> list[str]:
-        if settings.dry_run:
-            return []
-        client = _docker_client()
-        removed: list[str] = []
-        for c in client.containers.list(all=True):
-            if c.name.startswith("sim-"):
-                c.remove(force=True)
-                removed.append(c.name)
-                logger.info("Removed container %s", c.name)
-        return removed
+        return ShardManager._remove_labeled(LABEL_APP)
 
     def status(self) -> list[dict]:
         client = _docker_client()

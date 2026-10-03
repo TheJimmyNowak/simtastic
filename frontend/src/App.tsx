@@ -537,7 +537,7 @@ export default function App() {
           <div className="simulation-actions"><button
             className="button primary large"
             onClick={startSim}
-            disabled={current.status === "running" || starting || current.status !== "links_ready"}
+            disabled={starting || !["links_ready", "error"].includes(current.status)}
           >
             {starting ? "Uruchamianie…" : "Start (Docker)"}
           </button>

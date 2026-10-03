@@ -1,6 +1,5 @@
 import secrets
 from enum import Enum
-from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 class NodeRole(str, Enum):
@@ -25,8 +24,6 @@ class NodeConfig(BaseModel):
     role: NodeRole = NodeRole.CLIENT
     noise_floor_dbm: float = -120.0
     mac_address: str = Field(default_factory=_default_mac)
-    tcp_port: Optional[int] = None
-    tcp_host: Optional[str] = None
 
     @field_validator("id")
     @classmethod

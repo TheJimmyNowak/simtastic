@@ -93,12 +93,11 @@ def test_fresnel_and_knife_edge_helpers() -> None:
     assert knife_edge_loss_db(-20, 868, 50, 50) == 0
 
 
-def test_scenario_fingerprint_ignores_runtime_tcp_but_tracks_building_model() -> None:
+def test_scenario_fingerprint_ignores_runtime_fields_but_tracks_building_model() -> None:
     node = NodeConfig(id="a", lat=52, lon=21)
     environment = EnvironmentConfig(building_model_enabled=True)
     original = compute_scenario_fingerprint([node], environment)
-    node.tcp_host = "runtime-container"
-    node.tcp_port = 4403
-    assert compute_scenario_fingerprint([node], environment) == original
+    node.hop_limit = 5
+    assert compute_scenario_fingerprint([node], environment.model_copy(update={"fading_sigma_db": 3.0})) == original
     changed = environment.model_copy(update={"fresnel_clearance_ratio": 0.8})
     assert compute_scenario_fingerprint([node], changed) != original

@@ -34,7 +34,7 @@ docker pull meshtastic/meshtasticd:latest
 docker compose up --build
 
 # LUB lokalnie na hoście:
-DRY_RUN=false PYTHONPATH=backend uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+DRY_RUN=false PYTHONPATH=backend uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 **Nie używaj** `DRY_RUN=true` — wtedy Start w UI nic nie uruchomi w Dockerze.

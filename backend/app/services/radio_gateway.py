@@ -50,6 +50,7 @@ class RadioGateway:
         self.link_matrix = link_matrix
         self.fading_sigma_db = fading_sigma_db
         self._ifaces: dict[str, TCPInterface] = {}
+        self._endpoints: dict[str, tuple[str, int]] = {}
         self._id_by_hw: dict[int, str] = {}
         self._rng = random.Random(random_seed)
         self._rng_lock = threading.Lock()
@@ -59,8 +60,16 @@ class RadioGateway:
     def set_lora(self, lora) -> None:
         self._lora = lora
 
-    def attach_node(self, node_id: str, iface: TCPInterface, index: int) -> None:
+    def attach_node(
+        self,
+        node_id: str,
+        iface: TCPInterface,
+        index: int,
+        endpoint: tuple[str, int] | None = None,
+    ) -> None:
         self._ifaces[node_id] = iface
+        if endpoint is not None:
+            self._endpoints[node_id] = endpoint
         # meshtasticd wyprowadza numer węzła z wygenerowanych kluczy, nie z --hwid,
         # więc numer bierzemy z handshake'u (myInfo); hwid to tylko fallback.
         my_info = getattr(iface, "myInfo", None)
@@ -80,9 +89,9 @@ class RadioGateway:
         """Replace a dropped Meshtastic TCP session (keeps pubsub subscriptions)."""
         from app.services.meshtastic_tcp import replace_tcp_interface
 
-        node = self.nodes[index]
-        host = node.tcp_host or settings.meshtastic_tcp_host
-        port = node.tcp_port or (settings.tcp_port_base + index)
+        host, port = self._endpoints.get(
+            node_id, (settings.meshtastic_tcp_host, settings.tcp_port_base + index)
+        )
         old = self._ifaces.get(node_id)
         iface = replace_tcp_interface(
             old,

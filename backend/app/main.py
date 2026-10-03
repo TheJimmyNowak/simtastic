@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -6,10 +7,17 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import packets, scenarios, simulation, ws
 from app.services.shard_manager import ShardManager
+from app.services.simulation_manager import simulation_manager
 from app.config import settings
 from app.models.environment import LORA_PRESETS
 
-app = FastAPI(title="Meshtastic Routing Simulator", version="0.1.0")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    simulation_manager.recover_after_restart()
+    yield
+
+
+app = FastAPI(title="Meshtastic Routing Simulator", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,7 +40,7 @@ def health() -> dict:
 
 @app.post("/api/docker/cleanup-all")
 def cleanup_all_docker() -> dict:
-    """Emergency: remove all sim-* containers (orphans after uvicorn reload)."""
+    """Emergency: remove all simulator containers (labelled `mesh-sim`)."""
     removed = ShardManager.cleanup_all_sim_containers()
     return {"containers_removed": removed}
 

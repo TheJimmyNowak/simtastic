@@ -106,7 +106,7 @@ def provision_node(
 
     local.commitSettingsTransaction()
     time.sleep(ADMIN_GAP_S)
-    logger.info("Provisioned node %s (index %s) on port %s", node.id, index, node.tcp_port)
+    logger.info("Provisioned node %s (index %s)", node.id, index)
 
 
 def verify_provisioning(iface: TCPInterface, node: NodeConfig, preset_name: str) -> None:
