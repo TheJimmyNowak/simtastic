@@ -13,6 +13,9 @@ from app.models.scenario import Scenario, ScenarioCreate, ScenarioStatus
 from app.services.scenario_slug import slugify_scenario_id
 
 
+_RUNTIME_FIELDS = {"progress_done", "progress_total"}
+
+
 class ScenarioStore:
     _SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,119}$")
     def __init__(self, base_dir: Path | None = None) -> None:
@@ -41,7 +44,7 @@ class ScenarioStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             yaml.safe_dump(
-                scenario.model_dump(mode="json"),
+                scenario.model_dump(mode="json", exclude=_RUNTIME_FIELDS),
                 allow_unicode=True,
                 sort_keys=False,
             ),
@@ -131,14 +134,13 @@ class ScenarioStore:
         s.updated_at = datetime.now(timezone.utc)
         self.update(s)
 
-    def set_itm_progress(self, scenario_id: str, done: int, total: int) -> None:
+    def set_progress(self, scenario_id: str, done: int, total: int) -> None:
+        """Postęp długiej operacji (precompute / start) — tylko w pamięci, bez zapisu YAML."""
         s = self.get(scenario_id)
         if not s:
             return
-        s.itm_progress = float(done)
-        s.itm_total = total
-        s.updated_at = datetime.now(timezone.utc)
-        self.update(s)
+        s.progress_done = done
+        s.progress_total = total
 
 
 scenario_store = ScenarioStore()

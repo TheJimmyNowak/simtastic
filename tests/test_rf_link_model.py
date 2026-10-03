@@ -76,3 +76,20 @@ def test_gateway_does_not_fallback_to_all_nodes_without_neighbors() -> None:
     gateway._on_mesh_packet(packet, iface)
     assert len(packet_trace_service.list_recent_tx()) == 1
     assert packet_trace_service.list_recent_attempts() == []
+
+
+def test_link_details_handle_missing_building_data() -> None:
+    from app.services.propagation.link_matrix import LinkMatrix
+
+    matrix = LinkMatrix(
+        node_ids=["a", "b"],
+        path_loss_median_db=np.array([[0, 120.0], [121.0, 0]]),
+        median_rssi_db=np.array([[-999, -89.0], [-90.0, -999]]),
+        distance_m=np.full((2, 2), 500.0),
+        connectivity_neighbors={"a": ["b"], "b": ["a"]},
+        fresnel_clearance_m=np.full((2, 2), np.inf),
+    )
+    link = matrix.link(matrix.index("b"), matrix.index("a"))
+    assert (link.path_loss_db, link.terrain_loss_db, link.building_loss_db) == (121.0, 121.0, 0.0)
+    assert link.fresnel_clearance_m is None and link.dominant_building_id is None
+    assert matrix.propagation_model == "itm"

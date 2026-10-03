@@ -43,8 +43,8 @@ def update_scenario(scenario_id: str, body: ScenarioCreate) -> Scenario:
     s.environment = body.environment
     s.nodes = body.nodes
     s.status = ScenarioStatus.DRAFT
-    s.itm_progress = 0
-    s.itm_total = 0
+    s.progress_done = 0
+    s.progress_total = 0
     s.error_message = None
     delete_link_matrix(scenario_id)
     return scenario_store.update(s)

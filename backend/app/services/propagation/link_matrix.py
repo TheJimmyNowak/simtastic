@@ -1,14 +1,31 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 
 from app.config import settings
+
+
+@dataclass(frozen=True)
+class LinkDetails:
+    """Medianowe (bez fadingu) parametry skierowanego łącza TX→RX."""
+
+    path_loss_db: float
+    terrain_loss_db: float
+    building_loss_db: float
+    median_rssi_db: float
+    distance_m: float
+    blocked_buildings_count: int
+    fresnel_clearance_m: float | None
+    dominant_building_id: str | None
+    building_data_year: str | None
 
 
 @dataclass
@@ -32,8 +49,34 @@ class LinkMatrix:
     def n(self) -> int:
         return len(self.node_ids)
 
+    @property
+    def propagation_model(self) -> str:
+        return "itm+p526_buildings" if self.building_model_enabled else "itm"
+
+    @cached_property
+    def _index_by_id(self) -> dict[str, int]:
+        return {node_id: i for i, node_id in enumerate(self.node_ids)}
+
     def index(self, node_id: str) -> int:
-        return self.node_ids.index(node_id)
+        return self._index_by_id[node_id]
+
+    def link(self, tx: int, rx: int) -> LinkDetails:
+        def optional(array: np.ndarray | None, cast, default):
+            return cast(array[tx, rx]) if array is not None else default
+
+        clearance = optional(self.fresnel_clearance_m, float, None)
+        path_loss = float(self.path_loss_median_db[tx, rx])
+        return LinkDetails(
+            path_loss_db=path_loss,
+            terrain_loss_db=optional(self.terrain_loss_db, float, path_loss),
+            building_loss_db=optional(self.building_loss_db, float, 0.0),
+            median_rssi_db=float(self.median_rssi_db[tx, rx]),
+            distance_m=float(self.distance_m[tx, rx]),
+            blocked_buildings_count=optional(self.blocked_buildings_count, int, 0),
+            fresnel_clearance_m=clearance if clearance is not None and math.isfinite(clearance) else None,
+            dominant_building_id=optional(self.dominant_building_id, str, "") or None,
+            building_data_year=optional(self.building_data_year, str, "") or None,
+        )
 
 
 def matrix_path(scenario_id: str) -> Path:

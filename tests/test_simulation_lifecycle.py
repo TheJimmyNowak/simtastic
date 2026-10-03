@@ -92,3 +92,11 @@ def test_idle_status_requires_matching_matrix(store: ScenarioStore, monkeypatch)
     assert sim_module.idle_status(scenario.id) == ScenarioStatus.DRAFT
     monkeypatch.setattr(sim_module, "load_link_matrix", lambda _: _valid_matrix(scenario))
     assert sim_module.idle_status(scenario.id) == ScenarioStatus.LINKS_READY
+
+
+def test_progress_is_kept_in_memory_only(store: ScenarioStore) -> None:
+    scenario = _scenario(store, "progress", ScenarioStatus.PRECOMPUTING)
+    store.set_progress(scenario.id, 4, 10)
+    assert store.get(scenario.id).progress_done == 4
+    saved = (store._base / scenario.id / "scenario.yaml").read_text()
+    assert "progress_done" not in saved

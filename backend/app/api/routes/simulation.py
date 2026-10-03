@@ -59,7 +59,7 @@ def get_links(scenario_id: str) -> dict:
         "dominant_building_id": matrix.dominant_building_id.tolist() if matrix.dominant_building_id is not None else None,
         "building_data_year": matrix.building_data_year.tolist() if matrix.building_data_year is not None else None,
         "node_placement": matrix.node_placement or {},
-        "propagation_model": "itm+p526_buildings" if matrix.building_model_enabled else "itm",
+        "propagation_model": matrix.propagation_model,
         "distance_m": matrix.distance_m.tolist(),
         "connectivity_neighbors": matrix.connectivity_neighbors,
         "n": n,
@@ -111,8 +111,8 @@ def simulation_status(scenario_id: str) -> dict:
     return {
         "scenario_status": s.status,
         "error_message": s.error_message,
-        "itm_progress": s.itm_progress,
-        "itm_total": s.itm_total,
+        "progress_done": s.progress_done,
+        "progress_total": s.progress_total,
         "dry_run": settings.dry_run,
         **st,
     }

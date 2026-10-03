@@ -85,7 +85,7 @@ class SimulationManager:
         if self._precompute_thread and self._precompute_thread.is_alive():
             raise RuntimeError("ITM precompute already running")
         delete_link_matrix(scenario_id)
-        scenario_store.set_itm_progress(scenario_id, 0, len(scenario.nodes) * (len(scenario.nodes) - 1))
+        scenario_store.set_progress(scenario_id, 0, len(scenario.nodes) * (len(scenario.nodes) - 1))
         scenario_store.set_status(scenario_id, ScenarioStatus.PRECOMPUTING)
 
         def worker() -> None:
@@ -176,7 +176,7 @@ class SimulationManager:
                 host, port = self._shards.tcp_endpoint(i)
             else:
                 host, port = settings.meshtastic_tcp_host, settings.tcp_port_base + i
-            scenario_store.set_itm_progress(scenario_id, i, len(scenario.nodes))
+            scenario_store.set_progress(scenario_id, i, len(scenario.nodes))
             wait_for_tcp_port(host, port, timeout=timeout)
             prov_iface = open_tcp_interface(host, port, timeout=timeout)
             antenna_z = (placement.get(node.id) or {}).get("antenna_z_m")

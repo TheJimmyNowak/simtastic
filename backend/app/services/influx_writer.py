@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import queue
 import threading
 import time
@@ -121,50 +120,27 @@ class InfluxWriter:
             for j, rx_node in enumerate(matrix.node_ids):
                 if i == j:
                     continue
-                total = float(matrix.path_loss_median_db[i, j])
-                terrain = (
-                    float(matrix.terrain_loss_db[i, j])
-                    if matrix.terrain_loss_db is not None
-                    else total
-                )
-                buildings = (
-                    float(matrix.building_loss_db[i, j])
-                    if matrix.building_loss_db is not None
-                    else 0.0
-                )
+                link = matrix.link(i, j)
                 point = (
                     Point("link_precompute")
                     .tag("scenario_id", scenario_id)
                     .tag("experiment_id", experiment_id)
                     .tag("tx_node", tx_node)
                     .tag("rx_node", rx_node)
-                    .tag(
-                        "propagation_model",
-                        "itm+p526_buildings" if matrix.building_model_enabled else "itm",
-                    )
-                    .field("terrain_loss_db", terrain)
-                    .field("building_diffraction_db", buildings)
-                    .field("total_path_loss_db", total)
-                    .field("median_rssi_db", float(matrix.median_rssi_db[i, j]))
-                    .field("distance_m", float(matrix.distance_m[i, j]))
+                    .tag("propagation_model", matrix.propagation_model)
+                    .field("terrain_loss_db", link.terrain_loss_db)
+                    .field("building_diffraction_db", link.building_loss_db)
+                    .field("total_path_loss_db", link.path_loss_db)
+                    .field("median_rssi_db", link.median_rssi_db)
+                    .field("distance_m", link.distance_m)
+                    .field("blocked_buildings_count", link.blocked_buildings_count)
                 )
-                if matrix.blocked_buildings_count is not None:
-                    point = point.field(
-                        "blocked_buildings_count",
-                        int(matrix.blocked_buildings_count[i, j]),
-                    )
-                if matrix.fresnel_clearance_m is not None:
-                    clearance = float(matrix.fresnel_clearance_m[i, j])
-                    if math.isfinite(clearance):
-                        point = point.field("fresnel_clearance_m", clearance)
-                if matrix.dominant_building_id is not None:
-                    dominant = str(matrix.dominant_building_id[i, j])
-                    if dominant:
-                        point = point.field("dominant_building_id", dominant)
-                if matrix.building_data_year is not None:
-                    year = str(matrix.building_data_year[i, j])
-                    if year:
-                        point = point.tag("building_data_year", year)
+                if link.fresnel_clearance_m is not None:
+                    point = point.field("fresnel_clearance_m", link.fresnel_clearance_m)
+                if link.dominant_building_id:
+                    point = point.field("dominant_building_id", link.dominant_building_id)
+                if link.building_data_year:
+                    point = point.tag("building_data_year", link.building_data_year)
                 if self._node_count is not None:
                     point = point.tag("node_count", str(self._node_count))
                 self.enqueue_point(point)

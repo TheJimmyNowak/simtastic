@@ -44,5 +44,6 @@ class Scenario(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     error_message: Optional[str] = None
-    itm_progress: float = 0.0
-    itm_total: int = 0
+    # Postęp bieżącej operacji (precompute: kierunki ITM, start: węzły); nie jest zapisywany.
+    progress_done: int = 0
+    progress_total: int = 0

@@ -1,112 +1,140 @@
 from __future__ import annotations
 
 import logging
-import math
 import multiprocessing
+import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Callable, Optional
 
 import numpy as np
 
 from app.config import settings
 from app.models.environment import EnvironmentConfig
 from app.models.node import NodeConfig
-from app.services.propagation.itm_p2p import compute_path_loss_db
+from app.models.scenario import ScenarioStatus
 from app.services.propagation.building_index import BuildingIndex
-from app.services.propagation.building_model import compute_building_path, resolve_node_mount
+from app.services.propagation.building_model import (
+    BuildingPathResult,
+    NodeMount,
+    compute_building_path,
+    resolve_node_mount,
+)
+from app.services.propagation.itm_p2p import compute_path_loss_db
 from app.services.propagation.link_matrix import (
     LinkMatrix,
     build_connectivity_map,
     compute_scenario_fingerprint,
     save_link_matrix,
 )
-from app.services.propagation.srtm_profile import build_terrain_profile
+from app.services.propagation.srtm_profile import build_terrain_profile, elevation_m
 from app.services.rf_link_model import compute_rssi_db
 from app.services.scenario_store import scenario_store
 
 logger = logging.getLogger(__name__)
 
+ProgressCallback = Callable[[int, int], None]
 
-def _pair_loss(
+
+@dataclass(frozen=True)
+class PairResult:
+    """Wynik dla nieuporządkowanej pary (i, j); ITM liczony w obu kierunkach."""
+
+    i: int
+    j: int
+    distance_m: float
+    terrain_loss_ij_db: float
+    terrain_loss_ji_db: float
+    buildings: BuildingPathResult
+
+
+def _antenna_height_agl(
+    node: NodeConfig, mount: Optional[NodeMount], ground_z_m: float
+) -> float:
+    if mount is None:
+        return node.agl_m
+    return max(0.1, mount.antenna_z_m - ground_z_m)
+
+
+def _pair_task(
     srtm_dir: str,
-    building_db: str | None,
+    building_db: Optional[str],
     env_dict: dict,
-    tx: dict,
-    rx: dict,
-) -> tuple[str, str, float, float, float, float, int, float, str, str, dict, dict]:
+    i: int,
+    j: int,
+    node_i: dict,
+    node_j: dict,
+    mount_i: Optional[dict],
+    mount_j: Optional[dict],
+) -> PairResult:
+    """Run in a worker process: one terrain profile and building pass per pair.
+
+    The building model is symmetric, so it is evaluated once. ITM (itmlogic) is not
+    exactly reciprocal (differences of a few dB), so both directions are computed.
+    """
     env = EnvironmentConfig.model_validate(env_dict)
-    tx_n = NodeConfig.model_validate(tx)
-    rx_n = NodeConfig.model_validate(rx)
-    lora = env.resolve_lora()
-    profile, dist_m = build_terrain_profile(
-        Path(srtm_dir),
-        tx_n.lat,
-        tx_n.lon,
-        rx_n.lat,
-        rx_n.lon,
-    )
-    tx_height_agl = tx_n.agl_m
-    rx_height_agl = rx_n.agl_m
-    building_result = None
-    tx_mount = None
-    rx_mount = None
-    if building_db:
-        building_index = BuildingIndex(Path(building_db))
-        tx_mount = resolve_node_mount(
-            building_index, tx_n.lat, tx_n.lon, profile[0], tx_n.agl_m
+    a = NodeConfig.model_validate(node_i)
+    b = NodeConfig.model_validate(node_j)
+    mount_a = NodeMount(**mount_i) if mount_i else None
+    mount_b = NodeMount(**mount_j) if mount_j else None
+    frequency = env.resolve_lora().frequency_mhz
+
+    profile, distance_m = build_terrain_profile(Path(srtm_dir), a.lat, a.lon, b.lat, b.lon)
+    height_a = _antenna_height_agl(a, mount_a, profile[0])
+    height_b = _antenna_height_agl(b, mount_b, profile[-1])
+
+    def itm(path: list[float], h_tx: float, h_rx: float) -> float:
+        return compute_path_loss_db(
+            path,
+            distance_m / 1000.0,
+            h_tx,
+            h_rx,
+            frequency,
+            climate_klim=env.itm_climate,
+            ipol=env.itm_polarization,
         )
-        rx_mount = resolve_node_mount(
-            building_index, rx_n.lat, rx_n.lon, profile[-1], rx_n.agl_m
-        )
-        tx_height_agl = max(0.1, tx_mount.antenna_z_m - profile[0])
-        rx_height_agl = max(0.1, rx_mount.antenna_z_m - profile[-1])
-        building_result = compute_building_path(
-            building_index,
-            tx_mount,
-            rx_mount,
-            lora.frequency_mhz,
+
+    buildings = BuildingPathResult()
+    if building_db and mount_a and mount_b:
+        buildings = compute_building_path(
+            BuildingIndex(Path(building_db)),
+            mount_a,
+            mount_b,
+            frequency,
             env.fresnel_clearance_ratio,
             terrain_profile_m=profile,
         )
-    terrain_loss = compute_path_loss_db(
-        profile,
-        dist_m / 1000.0,
-        tx_height_agl,
-        rx_height_agl,
-        lora.frequency_mhz,
-        climate_klim=env.itm_climate,
-        ipol=env.itm_polarization,
+    return PairResult(
+        i=i,
+        j=j,
+        distance_m=distance_m,
+        terrain_loss_ij_db=itm(profile, height_a, height_b),
+        terrain_loss_ji_db=itm(profile[::-1], height_b, height_a),
+        buildings=buildings,
     )
-    building_loss = building_result.loss_db if building_result else 0.0
-    pl = terrain_loss + building_loss
-    rssi = compute_rssi_db(
-        lora.tx_power_dbm,
-        tx_n.antenna_gain_tx_db,
-        rx_n.antenna_gain_rx_db,
-        pl,
-        0.0,
-    )
-    mount_dict = lambda mount, node: {
+
+
+def _resolve_mounts(
+    nodes: list[NodeConfig], index: Optional[BuildingIndex]
+) -> list[Optional[NodeMount]]:
+    if index is None:
+        return [None] * len(nodes)
+    srtm_dir = settings.srtm_cache_dir
+    return [
+        resolve_node_mount(index, n.lat, n.lon, elevation_m(srtm_dir, n.lat, n.lon), n.agl_m)
+        for n in nodes
+    ]
+
+
+def _placement(node: NodeConfig, mount: Optional[NodeMount]) -> dict:
+    return {
         "placement": mount.placement if mount else "terrain",
         "building_id": mount.building_id if mount else None,
         "surface_z_m": mount.surface_z_m if mount else None,
         "antenna_z_m": mount.antenna_z_m if mount else None,
         "mast_height_m": node.agl_m,
     }
-    return (
-        tx_n.id,
-        rx_n.id,
-        terrain_loss,
-        building_loss,
-        rssi,
-        dist_m,
-        building_result.blocked_count if building_result else 0,
-        building_result.min_fresnel_clearance_m if building_result else math.inf,
-        building_result.dominant_building_id or "" if building_result else "",
-        building_result.data_year or "" if building_result else "",
-        mount_dict(tx_mount, tx_n),
-        mount_dict(rx_mount, rx_n),
-    )
 
 
 def precompute_link_matrix(
@@ -114,13 +142,12 @@ def precompute_link_matrix(
     nodes: list[NodeConfig],
     env: EnvironmentConfig,
     *,
-    on_progress: object | None = None,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> LinkMatrix:
     n = len(nodes)
-    node_ids = [nd.id for nd in nodes]
-    idx = {nd.id: i for i, nd in enumerate(nodes)}
-    path_loss = np.full((n, n), np.nan, dtype=np.float64)
-    terrain_loss = np.full((n, n), np.nan, dtype=np.float64)
+    lora = env.resolve_lora()
+    path_loss = np.zeros((n, n), dtype=np.float64)
+    terrain_loss = np.zeros((n, n), dtype=np.float64)
     building_loss = np.zeros((n, n), dtype=np.float64)
     median_rssi = np.full((n, n), -999.0, dtype=np.float64)
     distance_m = np.zeros((n, n), dtype=np.float64)
@@ -128,79 +155,74 @@ def precompute_link_matrix(
     fresnel_clearance = np.full((n, n), np.inf, dtype=np.float64)
     dominant_building = np.full((n, n), "", dtype=object)
     building_data_year = np.full((n, n), "", dtype=object)
-    node_placement: dict[str, dict] = {}
-    np.fill_diagonal(path_loss, 0.0)
-    np.fill_diagonal(terrain_loss, 0.0)
-    np.fill_diagonal(median_rssi, -999.0)
 
-    srtm_dir = str(settings.srtm_cache_dir.resolve())
-    env_dict = env.model_dump()
-    node_dicts = [nd.model_dump() for nd in nodes]
-    building_db: str | None = None
+    building_index: Optional[BuildingIndex] = None
     if env.building_model_enabled:
-        index = BuildingIndex(settings.buildings_index_path)
-        index.build(settings.buildings_raw_dir)
-        building_db = str(settings.buildings_index_path.resolve())
-    tasks: list[tuple[int, int]] = [(i, j) for i in range(n) for j in range(n) if i != j]
-    total = len(tasks)
-    done = 0
+        building_index = BuildingIndex(settings.buildings_index_path)
+        building_index.build(settings.buildings_raw_dir)
+    mounts = _resolve_mounts(nodes, building_index)
 
-    workers = max(1, min(total, (__import__("os").cpu_count() or 4) - 1))
+    pairs = [(i, j) for i in range(n) for j in range(i + 1, n)]
+    total_directions = 2 * len(pairs)
+    done = 0
+    srtm_dir = str(settings.srtm_cache_dir.resolve())
+    building_db = str(settings.buildings_index_path.resolve()) if building_index else None
+    env_dict = env.model_dump()
+    node_dicts = [node.model_dump() for node in nodes]
+    mount_dicts = [asdict(mount) if mount else None for mount in mounts]
+
+    workers = max(1, min(len(pairs), (os.cpu_count() or 4) - 1))
     # FastAPI, Meshtastic and Influx use background threads. Forking such a process can
     # inherit locked synchronization primitives, so workers must start cleanly.
     with ProcessPoolExecutor(
-        max_workers=workers,
-        mp_context=multiprocessing.get_context("spawn"),
+        max_workers=workers, mp_context=multiprocessing.get_context("spawn")
     ) as pool:
-        futures = {
+        futures = [
             pool.submit(
-                _pair_loss,
-                srtm_dir,
-                building_db,
-                env_dict,
-                node_dicts[i],
-                node_dicts[j],
-            ): (i, j)
-            for i, j in tasks
-        }
-        for fut in as_completed(futures):
-            i, j = futures[fut]
-            (
-                tx_id, rx_id, terrain, buildings, rssi, dist, blocked,
-                clearance, dominant, data_year, tx_mount, rx_mount,
-            ) = fut.result()
-            ii, jj = idx[tx_id], idx[rx_id]
-            terrain_loss[ii, jj] = terrain
-            building_loss[ii, jj] = buildings
-            path_loss[ii, jj] = terrain + buildings
-            median_rssi[ii, jj] = rssi
-            distance_m[ii, jj] = dist
-            blocked_count[ii, jj] = blocked
-            fresnel_clearance[ii, jj] = clearance
-            dominant_building[ii, jj] = dominant
-            building_data_year[ii, jj] = data_year
-            node_placement[tx_id] = tx_mount
-            node_placement[rx_id] = rx_mount
-            done += 1
+                _pair_task, srtm_dir, building_db, env_dict, i, j,
+                node_dicts[i], node_dicts[j], mount_dicts[i], mount_dicts[j],
+            )
+            for i, j in pairs
+        ]
+        for future in as_completed(futures):
+            r = future.result()
+            b = r.buildings
+            for tx, rx, terrain in ((r.i, r.j, r.terrain_loss_ij_db), (r.j, r.i, r.terrain_loss_ji_db)):
+                terrain_loss[tx, rx] = terrain
+                building_loss[tx, rx] = b.loss_db
+                path_loss[tx, rx] = terrain + b.loss_db
+                median_rssi[tx, rx] = compute_rssi_db(
+                    lora.tx_power_dbm,
+                    nodes[tx].antenna_gain_tx_db,
+                    nodes[rx].antenna_gain_rx_db,
+                    path_loss[tx, rx],
+                    0.0,
+                )
+                distance_m[tx, rx] = r.distance_m
+                blocked_count[tx, rx] = b.blocked_count
+                fresnel_clearance[tx, rx] = b.min_fresnel_clearance_m
+                dominant_building[tx, rx] = b.dominant_building_id or ""
+                building_data_year[tx, rx] = b.data_year or ""
+            done += 2
             if on_progress:
-                on_progress(done, total)
+                on_progress(done, total_directions)
 
-    neighbors = build_connectivity_map(
-        node_ids, median_rssi, env.connectivity_threshold_dbm
-    )
+    node_ids = [node.id for node in nodes]
     matrix = LinkMatrix(
         node_ids=node_ids,
         path_loss_median_db=path_loss,
         median_rssi_db=median_rssi,
         distance_m=distance_m,
-        connectivity_neighbors=neighbors,
+        connectivity_neighbors=build_connectivity_map(
+            node_ids, median_rssi, env.connectivity_threshold_dbm
+        ),
         terrain_loss_db=terrain_loss,
         building_loss_db=building_loss,
         blocked_buildings_count=blocked_count,
         fresnel_clearance_m=fresnel_clearance,
         dominant_building_id=dominant_building,
         building_data_year=building_data_year,
-        node_placement=node_placement,
+        node_placement={node.id: _placement(node, mount) for node, mount in zip(nodes, mounts)},
         building_model_enabled=env.building_model_enabled,
         scenario_fingerprint=compute_scenario_fingerprint(nodes, env),
     )
@@ -214,23 +236,16 @@ def run_precompute(scenario_id: str) -> None:
         raise ValueError(f"Scenario {scenario_id} not found")
     if len(scenario.nodes) < 2:
         raise ValueError("At least two nodes required for ITM precompute")
-
-    def progress(done: int, total: int) -> None:
-        scenario_store.set_itm_progress(scenario_id, done, total)
-
     try:
         precompute_link_matrix(
             scenario_id,
             scenario.nodes,
             scenario.environment,
-            on_progress=progress,
+            on_progress=lambda done, total: scenario_store.set_progress(scenario_id, done, total),
         )
-        from app.models.scenario import ScenarioStatus
-
         scenario_store.set_status(scenario_id, ScenarioStatus.LINKS_READY)
     except Exception as exc:
         logger.exception("ITM precompute failed")
-        from app.models.scenario import ScenarioStatus
-
         scenario_store.set_status(scenario_id, ScenarioStatus.ERROR, str(exc))
         raise
+

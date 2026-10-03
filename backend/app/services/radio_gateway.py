@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import random
 import threading
 from typing import Any, Optional
@@ -207,97 +206,55 @@ class RadioGateway:
         packet_trace_service.record_tx(tx_evt)
         influx_writer.write_packet_tx(tx_evt)
 
-        tx_idx = self.link_matrix.index(tx_id)
-        tx_node = self.nodes[tx_idx]
-        lora = self._lora
-        if lora is None:
+        if self._lora is None:
             return
-
-        candidates = self.link_matrix.connectivity_neighbors.get(tx_id, [])
-
-        receivers: list[NodeConfig] = []
-        rssis: list[float] = []
-        snrs: list[float] = []
-
-        for rx_id in candidates:
+        receivers: list[tuple[NodeConfig, float, float]] = []
+        for rx_id in self.link_matrix.connectivity_neighbors.get(tx_id, []):
             if rx_id == tx_id:
                 continue
-            rx_idx = self.link_matrix.index(rx_id)
-            rx_node = self.nodes[rx_idx]
-            pl = float(self.link_matrix.path_loss_median_db[tx_idx, rx_idx])
-            terrain_loss = (
-                float(self.link_matrix.terrain_loss_db[tx_idx, rx_idx])
-                if self.link_matrix.terrain_loss_db is not None
-                else pl
-            )
-            building_loss = (
-                float(self.link_matrix.building_loss_db[tx_idx, rx_idx])
-                if self.link_matrix.building_loss_db is not None
-                else 0.0
-            )
-            blocked_count = (
-                int(self.link_matrix.blocked_buildings_count[tx_idx, rx_idx])
-                if self.link_matrix.blocked_buildings_count is not None
-                else 0
-            )
-            clearance = (
-                float(self.link_matrix.fresnel_clearance_m[tx_idx, rx_idx])
-                if self.link_matrix.fresnel_clearance_m is not None
-                else None
-            )
-            if clearance is not None and not math.isfinite(clearance):
-                clearance = None
-            dominant = (
-                str(self.link_matrix.dominant_building_id[tx_idx, rx_idx]) or None
-                if self.link_matrix.dominant_building_id is not None
-                else None
-            )
-            data_year = (
-                str(self.link_matrix.building_data_year[tx_idx, rx_idx]) or None
-                if self.link_matrix.building_data_year is not None
-                else None
-            )
-            with self._rng_lock:
-                shadow = self._rng.gauss(0.0, self.fading_sigma_db)
-            rssi = compute_rssi_db(
-                lora.tx_power_dbm,
-                tx_node.antenna_gain_tx_db,
-                rx_node.antenna_gain_rx_db,
-                pl,
-                shadow,
-            )
-            snr = compute_snr_db(rssi, rx_node.noise_floor_dbm)
-            delivered = is_packet_decoded_rssi(rssi, lora.sensitivity_dbm)
-
-            att = LinkAttempt(
-                scenario_id=self.scenario_id,
-                experiment_id=self.experiment_id,
-                packet_id=packet_id,
-                tx_node=tx_id,
-                rx_node=rx_id,
-                path_loss_median_db=pl,
-                terrain_loss_db=terrain_loss,
-                building_diffraction_db=building_loss,
-                blocked_buildings_count=blocked_count,
-                fresnel_clearance_m=clearance,
-                dominant_building_id=dominant,
-                building_data_year=data_year,
-                propagation_model="itm+p526_buildings" if self.link_matrix.building_model_enabled else "itm",
-                shadow_db=shadow,
-                rssi_db=rssi,
-                snr_db=snr,
-                delivered=delivered,
-            )
-            packet_trace_service.record_link_attempt(att)
-            influx_writer.write_link_attempt(att)
-
-            if delivered:
-                receivers.append(rx_node)
-                rssis.append(rssi)
-                snrs.append(snr)
-
+            attempt = self._simulate_link(tx_id, rx_id, packet_id)
+            packet_trace_service.record_link_attempt(attempt)
+            influx_writer.write_link_attempt(attempt)
+            if attempt.delivered:
+                rx_node = self.nodes[self.link_matrix.index(rx_id)]
+                receivers.append((rx_node, attempt.rssi_db, attempt.snr_db))
         if receivers:
-            self._forward_packet(receivers, packet, rssis, snrs, packet_id)
+            self._forward_packet(receivers, packet, packet_id)
+
+    def _simulate_link(self, tx_id: str, rx_id: str, packet_id: int) -> LinkAttempt:
+        """Jedna próba odbioru: medianowa strata z macierzy + losowy fading N(0, σ²)."""
+        tx_idx, rx_idx = self.link_matrix.index(tx_id), self.link_matrix.index(rx_id)
+        tx_node, rx_node = self.nodes[tx_idx], self.nodes[rx_idx]
+        link = self.link_matrix.link(tx_idx, rx_idx)
+        with self._rng_lock:
+            shadow = self._rng.gauss(0.0, self.fading_sigma_db)
+        rssi = compute_rssi_db(
+            self._lora.tx_power_dbm,
+            tx_node.antenna_gain_tx_db,
+            rx_node.antenna_gain_rx_db,
+            link.path_loss_db,
+            shadow,
+        )
+        snr = compute_snr_db(rssi, rx_node.noise_floor_dbm)
+        return LinkAttempt(
+            scenario_id=self.scenario_id,
+            experiment_id=self.experiment_id,
+            packet_id=packet_id,
+            tx_node=tx_id,
+            rx_node=rx_id,
+            path_loss_median_db=link.path_loss_db,
+            terrain_loss_db=link.terrain_loss_db,
+            building_diffraction_db=link.building_loss_db,
+            blocked_buildings_count=link.blocked_buildings_count,
+            fresnel_clearance_m=link.fresnel_clearance_m,
+            dominant_building_id=link.dominant_building_id,
+            building_data_year=link.building_data_year,
+            propagation_model=self.link_matrix.propagation_model,
+            shadow_db=shadow,
+            rssi_db=rssi,
+            snr_db=snr,
+            delivered=is_packet_decoded_rssi(rssi, self._lora.sensitivity_dbm),
+        )
 
     @staticmethod
     def _packet_from_packet(packet: dict[str, Any], data: bytes, portnum: int) -> mesh_pb2.MeshPacket:
@@ -340,21 +297,20 @@ class RadioGateway:
 
     def _forward_packet(
         self,
-        receivers: list[NodeConfig],
+        receivers: list[tuple[NodeConfig, float, float]],
         packet: dict[str, Any],
-        rssis: list[float],
-        snrs: list[float],
         packet_id: int,
     ) -> None:
+        """Wstrzykuje pakiet odbiorcom; `receivers` to krotki (węzeł, RSSI, SNR)."""
         mesh_packet = self._air_packet(packet)
         if mesh_packet.decoded.portnum != portnums_pb2.PortNum.SIMULATOR_APP:
             # Inny portnum firmware traktuje jako wiadomość od klienta (from := 0)
             # i nadałby ją jako własną — to nie byłby odbiór radiowy.
             logger.warning("Not forwarding non-SIMULATOR_APP packet %s", packet_id)
             return
-        for i, rx in enumerate(receivers):
-            mesh_packet.rx_rssi = int(round(rssis[i]))
-            mesh_packet.rx_snr = float(snrs[i])
+        for rx, rssi, snr in receivers:
+            mesh_packet.rx_rssi = int(round(rssi))
+            mesh_packet.rx_snr = float(snr)
             to_radio = mesh_pb2.ToRadio()
             to_radio.packet.CopyFrom(mesh_packet)
             iface = self._ifaces.get(rx.id)
@@ -370,8 +326,8 @@ class RadioGateway:
                 experiment_id=self.experiment_id,
                 packet_id=packet_id,
                 rx_node=rx.id,
-                rssi_db=rssis[i],
-                snr_db=snrs[i],
+                rssi_db=rssi,
+                snr_db=snr,
             )
             packet_trace_service.record_rx(rx_evt)
 

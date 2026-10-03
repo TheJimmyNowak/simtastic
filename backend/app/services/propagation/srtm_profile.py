@@ -8,7 +8,6 @@ from pathlib import Path
 from geopy.distance import geodesic
 
 _SAMPLES = 1201
-_TILE_CACHE: dict[tuple[str, str], list[int]] = {}
 
 
 def _tile_name(lat: float, lon: float) -> str:
@@ -30,7 +29,8 @@ def _read_tile(cache_dir: str, tile: str) -> tuple[int, ...]:
     return struct.unpack(f">{_SAMPLES * _SAMPLES}h", raw[: _SAMPLES * _SAMPLES * 2])
 
 
-def _elevation_m(cache_dir: Path, lat: float, lon: float) -> float:
+def elevation_m(cache_dir: Path, lat: float, lon: float) -> float:
+    """Terrain height AMSL [m] from the nearest SRTM3 sample (voids -> 0)."""
     tile = _tile_name(lat, lon)
     data = _read_tile(str(cache_dir.resolve()), tile)
     lat_sw = math.floor(lat)
@@ -65,5 +65,5 @@ def build_terrain_profile(
         f = i / num_segments
         lat = lat1 + f * (lat2 - lat1)
         lon = lon1 + f * (lon2 - lon1)
-        profile.append(_elevation_m(cache_dir, lat, lon))
+        profile.append(elevation_m(cache_dir, lat, lon))
     return profile, dist_m

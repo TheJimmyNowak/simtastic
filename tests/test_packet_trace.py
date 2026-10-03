@@ -5,7 +5,6 @@ from meshtastic import mesh_pb2, portnums_pb2
 
 from app.models.environment import EnvironmentConfig
 from app.models.node import NodeConfig
-from app.services.mesh_packet_util import packet_as_dict
 from app.services.packet_trace import packet_trace_service
 from app.services.propagation.link_matrix import LinkMatrix
 from app.services.radio_gateway import HW_ID_OFFSET, SIMULATOR_TOPIC, RadioGateway
@@ -16,20 +15,6 @@ def test_portnum_int_from_packet_dict() -> None:
         "decoded": {"portnum": "POSITION_APP", "payload": b""},
     }
     assert RadioGateway._portnum_int(pkt) == portnums_pb2.PortNum.POSITION_APP
-
-
-def test_packet_as_dict_from_mesh_packet() -> None:
-    p = mesh_pb2.MeshPacket()
-    p.id = 99
-    p.to = 0xFFFFFFFF
-    p.decoded.payload = b"hello"
-    p.decoded.portnum = portnums_pb2.PortNum.TEXT_MESSAGE_APP
-    p.hop_limit = 3
-    d = packet_as_dict(p, from_hw=0x10)
-    assert d["id"] == 99
-    assert d["from"] == 0x10
-    assert d["decoded"]["payload"] == b"hello"
-    assert "TEXT_MESSAGE" in d["decoded"]["portnum"]
 
 
 class FakeIface:
@@ -131,11 +116,13 @@ def test_gateway_listens_only_to_simulator_topic() -> None:
 def test_non_simulator_packet_is_never_injected() -> None:
     """Injecting e.g. TEXT_MESSAGE_APP would make the firmware re-send it as its own."""
     gw, ifaces = line_gateway()
-    p = mesh_pb2.MeshPacket(id=11, to=0xFFFFFFFF)
-    p.decoded.portnum = portnums_pb2.PortNum.TEXT_MESSAGE_APP
-    p.decoded.payload = b"x"
-    packet = packet_as_dict(p, from_hw=HW_ID_OFFSET)
-    gw._forward_packet([gw.nodes[1]], packet, [-80.0], [10.0], 11)
+    packet = {
+        "id": 11,
+        "from": HW_ID_OFFSET,
+        "to": 0xFFFFFFFF,
+        "decoded": {"portnum": "TEXT_MESSAGE_APP", "payload": b"x"},
+    }
+    gw._forward_packet([(gw.nodes[1], -80.0, 10.0)], packet, 11)
     assert ifaces["b"].sent == []
 
 
