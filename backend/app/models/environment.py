@@ -89,12 +89,6 @@ class EnvironmentConfig(BaseModel):
         le=1,
         description="Polaryzacja ITM (0/1), parametr Longley–Rice.",
     )
-    shard_size: int = Field(
-        default=10,
-        ge=1,
-        le=50,
-        description="Liczba węzłów na kontener Docker (shard).",
-    )
     connectivity_threshold_dbm: float = Field(
         default=-140.0,
         description=(

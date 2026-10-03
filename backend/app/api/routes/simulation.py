@@ -9,7 +9,7 @@ from app.config import settings
 from app.models.scenario import ScenarioStatus
 from app.services.propagation.link_matrix import load_link_matrix
 from app.services.scenario_store import scenario_store
-from app.services.shard_manager import ShardManager
+from app.services.node_containers import NodeContainers
 from app.services.simulation_manager import idle_status, simulation_manager
 
 router = APIRouter(prefix="/api/scenarios/{scenario_id}", tags=["simulation"])
@@ -97,7 +97,7 @@ def cleanup_scenario_containers(scenario_id: str) -> dict:
     """Force-remove Docker shards even when simulation is not tracked in memory."""
     if not scenario_store.get(scenario_id):
         raise HTTPException(404, "Scenario not found")
-    removed = ShardManager.cleanup_scenario_containers(scenario_id)
+    removed = NodeContainers.cleanup_scenario_containers(scenario_id)
     scenario_store.set_status(scenario_id, idle_status(scenario_id))
     return {"containers_removed": removed}
 
@@ -113,6 +113,5 @@ def simulation_status(scenario_id: str) -> dict:
         "error_message": s.error_message,
         "progress_done": s.progress_done,
         "progress_total": s.progress_total,
-        "dry_run": settings.dry_run,
         **st,
     }

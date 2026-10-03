@@ -15,6 +15,17 @@ class ScenarioStatus(str, Enum):
     STOPPED = "stopped"
     ERROR = "error"
 
+# Statusy, w których trwa operacja w tle — scenariusza nie można wtedy edytować ani usunąć.
+ACTIVE_STATUSES = frozenset(
+    {
+        ScenarioStatus.PRECOMPUTING,
+        ScenarioStatus.STARTING,
+        ScenarioStatus.RUNNING,
+        ScenarioStatus.STOPPING,
+    }
+)
+
+
 class ScenarioCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     environment: EnvironmentConfig = Field(default_factory=EnvironmentConfig)

@@ -5,8 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import packets, scenarios, simulation, ws
-from app.services.shard_manager import ShardManager
+from app.api.routes import packets, scenarios, simulation
+from app.services.node_containers import NodeContainers
 from app.services.simulation_manager import simulation_manager
 from app.config import settings
 from app.models.environment import LORA_PRESETS
@@ -30,7 +30,6 @@ app.add_middleware(
 app.include_router(scenarios.router)
 app.include_router(simulation.router)
 app.include_router(packets.router)
-app.include_router(ws.router)
 
 
 @app.get("/api/health")
@@ -41,7 +40,7 @@ def health() -> dict:
 @app.post("/api/docker/cleanup-all")
 def cleanup_all_docker() -> dict:
     """Emergency: remove all simulator containers (labelled `mesh-sim`)."""
-    removed = ShardManager.cleanup_all_sim_containers()
+    removed = NodeContainers.cleanup_all_sim_containers()
     return {"containers_removed": removed}
 
 
@@ -52,11 +51,7 @@ def list_presets() -> dict:
 
 @app.get("/api/config")
 def app_config() -> dict:
-    return {
-        "dry_run": settings.dry_run,
-        "meshtastic_tcp_host": settings.meshtastic_tcp_host,
-        "meshtastic_image": settings.meshtastic_image,
-    }
+    return {"meshtastic_image": settings.meshtastic_image, "node_access": settings.sim_node_access}
 
 
 frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"

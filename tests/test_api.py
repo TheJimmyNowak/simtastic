@@ -1,8 +1,6 @@
-import os
 import uuid
 import json
 
-os.environ["DRY_RUN"] = "true"
 
 import pytest
 from pydantic import ValidationError

@@ -2,7 +2,7 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException
 
-from app.models.scenario import Scenario, ScenarioCreate, ScenarioStatus
+from app.models.scenario import ACTIVE_STATUSES, Scenario, ScenarioCreate, ScenarioStatus
 from app.services.scenario_store import scenario_store
 from app.services.propagation.link_matrix import delete_link_matrix
 
@@ -32,12 +32,7 @@ def update_scenario(scenario_id: str, body: ScenarioCreate) -> Scenario:
     s = scenario_store.get(scenario_id)
     if not s:
         raise HTTPException(404, "Scenario not found")
-    if s.status in {
-        ScenarioStatus.PRECOMPUTING,
-        ScenarioStatus.STARTING,
-        ScenarioStatus.RUNNING,
-        ScenarioStatus.STOPPING,
-    }:
+    if s.status in ACTIVE_STATUSES:
         raise HTTPException(409, "Stop the simulation before editing the scenario")
     s.name = body.name
     s.environment = body.environment
@@ -55,11 +50,6 @@ def delete_scenario(scenario_id: str) -> None:
     scenario = scenario_store.get(scenario_id)
     if not scenario:
         raise HTTPException(404, "Scenario not found")
-    if scenario.status in {
-        ScenarioStatus.PRECOMPUTING,
-        ScenarioStatus.STARTING,
-        ScenarioStatus.RUNNING,
-        ScenarioStatus.STOPPING,
-    }:
+    if scenario.status in ACTIVE_STATUSES:
         raise HTTPException(409, "Stop the simulation before deleting the scenario")
     scenario_store.delete(scenario_id)

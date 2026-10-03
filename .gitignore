@@ -12,3 +12,4 @@ scenarios/*.yaml
 .env
 *.egg-info/
 .DS_Store
+.cursor/

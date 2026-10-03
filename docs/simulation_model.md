@@ -56,7 +56,7 @@ Routing, kolejki i logika mesh są w **firmware**; Python zastępuje tylko **med
 
 ## Trace i metryki
 
-- `simulation_run` — jednorazowy punkt przy starcie runu (`node_count`, `preset`, fading, shard).
+- `simulation_run` — jednorazowy punkt przy starcie runu (`node_count`, `preset`, fading, model budynków).
 - `link_precompute` — wszystkie skierowane pary, również odcięte przez próg runtime;
   zawiera osobne straty terenu i budynków oraz wynikowy RSSI medianowy.
 - `packet_ota_tx` — każda uchwycona transmisja (tag `portnum`, pola `hop_start` / `hop_limit`, rebroadcast); tag `node_count` z bieżącego runu.

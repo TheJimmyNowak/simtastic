@@ -4,51 +4,50 @@ Symulator sieci Meshtastic do badań **routingu i skalowalności** z modelem ł�
 
 ## Architektura
 
-- **FastAPI** — orchestrator, API REST, WebSocket śladu pakietów
-- **React + Leaflet** — kreator scenariusza, heatmapa ITM, podgląd pakietów
-- **meshtasticd** (Docker, shardy) — prawdziwy firmware Meshtastic w trybie `-s`
+- **FastAPI** — orkiestrator i API REST
+- **React + Leaflet** — kreator scenariusza, macierz łączy ITM, podgląd pakietów
+- **meshtasticd** (Docker, jeden kontener na węzeł) — prawdziwy firmware Meshtastic w trybie `-s`
 - **RadioGateway** — przechwytuje transmisje SimRadio (`SIMULATOR_APP`) z węzła, który faktycznie nadaje, modeluje łącze (ITM + fading) i wstrzykuje je odbiorcom jako `SIMULATOR_APP` (firmware traktuje to jako odbiór radiowy)
-- **InfluxDB** — `packet_ota_tx`, `link_attempt`, `node_stats`
+- **InfluxDB** — `simulation_run`, `link_precompute`, `packet_ota_tx`, `link_attempt`
 - **Grafana** — dashboardy na danych Influx (Flux), port 3000
 
 ## Wymagania
 
-- Python 3.11+, Docker, Node.js 18+
+- Docker (z Docker Compose), Node.js 18+; Python 3.11+ tylko do testów i uruchamiania bez Dockera
 - Kafelki SRTM w `data/srtm_cache/` (N*.hgt)
 - Modele budynków LoD1 CityGML w `data/buildings_raw/` (dla modelu zabudowy)
-- Obraz `meshtastic/meshtasticd:latest`
 
-## Uruchomienie symulacji Dockerowej
+## Uruchomienie
 
-### 1. Wymagania
+### 1. Backend, InfluxDB i Grafana
 
 ```bash
 docker pull meshtastic/meshtasticd:latest
-# użytkownik uruchamiający backend musi mieć dostęp do docker.sock
-```
-
-### 2. Backend **bez** DRY_RUN
-
-```bash
-# Terminal 1 — cały stack (zalecane)
 docker compose up --build
-
-# LUB lokalnie na hoście:
-DRY_RUN=false PYTHONPATH=backend uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-**Nie używaj** `DRY_RUN=true` — wtedy Start w UI nic nie uruchomi w Dockerze.
+API: http://localhost:8000. Backend uruchamia kontenery węzłów przez `/var/run/docker.sock`
+i łączy się z nimi po nazwie w sieci `meshtastic_sim` (`SIM_NODE_ACCESS=network`).
+Po zmianie kodu backendu: `docker compose restart backend` (restart sam usuwa kontenery
+węzłów pozostałe po poprzednim procesie).
 
-### 3. Frontend
+Backend bez Dockera (np. do debugowania) — węzły są wtedy osiągane przez porty opublikowane
+na 127.0.0.1 (`SIM_NODE_ACCESS=host`, domyślnie):
 
 ```bash
-# Terminal 2
-cd frontend && npm run dev
+python -m venv .venv && .venv/bin/pip install -e ".[dev]"
+PYTHONPATH=backend .venv/bin/uvicorn app.main:app --port 8000
 ```
 
-Otwórz http://localhost:5173
+### 2. Frontend
 
-**Grafana** (gdy używasz `docker compose up`): http://localhost:3000 — `admin` / `admin`. Datasource InfluxDB (Flux, org `meshtastic`, bucket `meshtastic_sim`) jest provisionowany z [docker/grafana/provisioning](docker/grafana/provisioning).
+```bash
+cd frontend && npm install && npm run dev
+```
+
+Otwórz http://localhost:5173 (Vite przekazuje `/api` do backendu na porcie 8000).
+
+**Grafana**: http://localhost:3000 — `admin` / `admin`. Datasource InfluxDB (Flux, org `meshtastic`, bucket `meshtastic_sim`) jest provisionowany z [docker/grafana/provisioning](docker/grafana/provisioning).
 
 ### Dashboardy (folder **Meshtastic**)
 
@@ -63,34 +62,22 @@ Wspólne zmienne: `scenario_id`, `experiment_id` (multi + All). Na dashboardzie 
 
 **Workflow badawczy:** dla każdej liczby węzłów N ustaw unikalny `experiment_id` w panelu środowiska UI → uruchom symulację → na *Skalowalność* porównaj metryki; na *Routing* wybierz `packet_id` i prześledź rebroadcasty oraz skoki RF. Routing logiczny = firmware `meshtasticd`; Grafana pokazuje rebroadcasty, łańcuch TX i `link_attempt`, nie tabelę tras z firmware.
 
-### 4. Kroki w UI
+### Kroki w UI
 
-1. **Nowy scenariusz** — wybierz scenariusz z listy  
-2. **Łącza ITM** → **Precompute ITM** — poczekaj aż status = `links_ready` (heatmapa)  
-3. **Symulacja** → **Start (Docker)** — status przejdzie przez `starting` → `running` (10–30 s)  
-4. **Pakiety** — ślad transmisji (po wysłaniu wiadomości z węzłów)
+1. **Środowisko** — utwórz lub wybierz scenariusz, ustaw preset i parametry modelu
+2. **Węzły** — rozmieść co najmniej dwa węzły na mapie
+3. **Łącza ITM** → **Oblicz łącza** — poczekaj, aż status zmieni się na „Łącza gotowe”
+4. **Symulacja** → **Start** — status przejdzie przez „Uruchamianie” do „Symulacja działa”
+5. **Pakiety** — ślad transmisji i prób radiowych
 
-Jeśli Start „nic nie robi”: sprawdź czerwony komunikat błędu w kroku Symulacja lub `GET /api/scenarios/{id}/status`.
-
-### 5. Sprawdzenie kontenerów
-
-```bash
-docker ps | grep sim-
-docker logs sim-XXXXXXXX-shard-0
-```
-
-## Tryb dry-run (tylko ITM, bez meshtasticd)
-
-```bash
-export DRY_RUN=true
-PYTHONPATH=backend uvicorn app.main:app --port 8000
-```
+Kontenery węzłów: `docker ps --filter label=mesh-sim` (nazwy `sim-<scenariusz>-node-<n>`),
+logi firmware: `docker logs sim-<scenariusz>-node-0`.
 
 ## Scenariusz badawczy
 
 1. Utwórz scenariusz (≥2 węzły, `hop_limit` per węzeł, rola ROUTER/CLIENT).
 2. **Precompute ITM** — macierz `data/scenarios/{id}/link_matrix.npz`.
-3. **Start** — shardy Docker + RadioGateway.
+3. **Start** — kontenery węzłów + RadioGateway.
 4. Opcjonalnie traffic: `scenarios/example_traffic.yaml` w `POST /start` z `{"traffic_config": "/app/scenarios/example_traffic.yaml"}`.
 
 ### Budynki LoD1
@@ -111,22 +98,21 @@ scenariusza `building_model_enabled` steruje warstwą zabudowy, a
 
 | Measurement | Opis |
 |-------------|------|
-| `simulation_run` | Start runu: tagi `node_count`, `preset`; pola `fading_sigma_db`, `shard_size` |
-| `packet_ota_tx` | Każda transmisja OTA (`packet_id`, `hop_limit`, `hop_start`, rebroadcast); tag `node_count` |
+| `simulation_run` | Start runu: tagi `node_count`, `preset`; pola `fading_sigma_db`, model budynków |
+| `packet_ota_tx` | Każda transmisja OTA (`packet_id`, `hop_limit`, `hop_start`, rebroadcast); tagi `tx_node`, `origin_node`, `portnum`, `node_count` |
 | `link_attempt` | Para (tx, rx): median PL, shadow, RSSI, delivered; tag `node_count` |
-| `node_stats` | channel_util, air_util_tx, num_tx_relay, num_rx_dupe (planowane / README) |
 
 Tagi `experiment_id`, `scenario_id` — filtry i porównania skalowalności (różne N, preset, fading).
 
-## Model symulacji i `bootstrap_services.py`
+## Model symulacji
 
-- **Dokument metodologiczny:** [docs/simulation_model.md](docs/simulation_model.md) — wejścia, precompute ITM, runtime RF, trace, ograniczenia modelu.
-- **`scripts/bootstrap_services.py`** — generator plików w `backend/app/services/` (UTF-8). **Źródłem prawdy w repozytorium jest aktualny kod w `backend/`**; skryptu używaj świadomie do odtworzenia plików po awarii lub bootstrapu od zera. Po ręcznych zmianach w serwisach nie uruchamiaj generatora nadpisującego te same pliki, chyba że scalisz diff ręcznie.
+Dokument metodologiczny: [docs/simulation_model.md](docs/simulation_model.md) — wejścia,
+precompute ITM, runtime RF, trace, ograniczenia modelu.
 
 ## Testy
 
 ```bash
-PYTHONPATH=backend pytest tests/ -c pytest.ini
+.venv/bin/pytest
 ```
 
 Test end-to-end na prawdziwym `meshtasticd` (Docker): linia A–B–C, gdzie A nie słyszy C —
@@ -139,22 +125,22 @@ PYTHONPATH=backend .venv/bin/python scripts/e2e_line_test.py
 
 ## Skalowanie 100+ węzłów
 
-- `environment.shard_size` (domyślnie 10) — procesów `meshtasticd` na kontener
-- `connectivity_threshold_dbm` — pomija pary poza zasięgiem mediany w runtime
-- Pełny zapis `link_attempt` do Influx (N×(N-1) na broadcast)
+- Każdy węzeł to osobny kontener; węzły są konfigurowane równolegle (`SIM_PROVISION_WORKERS`).
+- `connectivity_threshold_dbm` — pomija pary poza zasięgiem mediany w runtime.
+- Pełny zapis `link_attempt` do Influx (N×(N-1) na broadcast).
 
 ## Zmienne środowiskowe
 
-| Zmienna | Domyślnie |
-|---------|-----------|
-| `INFLUX_URL` | http://localhost:8086 |
-| `INFLUX_TOKEN` | meshtastic-dev-token |
-| `DRY_RUN` | false |
-| `MESHTASTIC_TCP_HOST` | 127.0.0.1 |
-| `SIM_MESH_BOOT_GRACE_S` | 8.0 — poczekaj po starcie shardów przed provisionem |
-| `SIM_POST_PROVISION_SETTLE_S` | 2.0 — pauza po adminie przed ponownym TCP |
-| `SIM_MESHTASTIC_TCP_TIMEOUT_S` | 120.0 — timeout oczekiwania na port TCP |
-| `SIM_START_THREAD_JOIN_S` | 45.0 — join wątku startu przy `force_stop` |
+| Zmienna | Domyślnie | Opis |
+|---------|-----------|------|
+| `INFLUX_URL` / `INFLUX_TOKEN` | http://localhost:8086 / meshtastic-dev-token | InfluxDB |
+| `MESHTASTIC_IMAGE` | meshtastic/meshtasticd:latest | obraz firmware |
+| `SIM_NODE_ACCESS` | host | `network` (backend w compose) albo `host` (backend na hoście) |
+| `SIM_DOCKER_NETWORK` | meshtastic_sim | sieć kontenerów w trybie `network` |
+| `SIM_PROVISION_WORKERS` | 4 | ile węzłów konfigurować równolegle |
+| `SIM_MESHTASTIC_TCP_TIMEOUT_S` | 120 | oczekiwanie na API węzła |
+| `SIM_MESH_CONNECT_TIMEOUT_S` | 90 | oczekiwanie na handshake Meshtastic |
+| `SIM_TRAFFIC_WARMUP_S` | 5 | pauza między startem węzłów a ruchem |
 
 ## Powtarzalność eksperymentów
 

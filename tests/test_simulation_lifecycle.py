@@ -4,11 +4,11 @@ import pytest
 
 from app.models.node import NodeConfig
 from app.models.scenario import ScenarioCreate, ScenarioStatus
-from app.services import shard_manager as shard_module
+from app.services import node_containers as containers_module
 from app.services import simulation_manager as sim_module
 from app.services.propagation.link_matrix import compute_scenario_fingerprint
 from app.services.scenario_store import ScenarioStore
-from app.services.shard_manager import LABEL_APP, LABEL_SCENARIO, ShardManager
+from app.services.node_containers import LABEL_APP, LABEL_SCENARIO, NodeContainers
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def store(tmp_path, monkeypatch) -> ScenarioStore:
     store = ScenarioStore(tmp_path)
     monkeypatch.setattr(sim_module, "scenario_store", store)
     monkeypatch.setattr(sim_module, "load_link_matrix", lambda scenario_id: None)
-    monkeypatch.setattr(ShardManager, "cleanup_all_sim_containers", staticmethod(lambda: []))
+    monkeypatch.setattr(NodeContainers, "cleanup_all_sim_containers", staticmethod(lambda: []))
     return store
 
 
@@ -39,9 +39,9 @@ def _valid_matrix(scenario):
 
 
 def test_container_names_do_not_collide_for_common_prefix() -> None:
-    one = ShardManager("scenariusz-1", 10)._container_name(0)
-    ten = ShardManager("scenariusz-10", 10)._container_name(0)
-    assert one == "sim-scenariusz-1-shard-0"
+    one = NodeContainers("scenariusz-1").container_name(0)
+    ten = NodeContainers("scenariusz-10").container_name(0)
+    assert one == "sim-scenariusz-1-node-0"
     assert one != ten
 
 
@@ -53,10 +53,9 @@ def test_cleanup_filters_by_scenario_label(monkeypatch) -> None:
             calls.append(filters)
             return []
 
-    monkeypatch.setattr(shard_module.settings, "dry_run", False)
-    monkeypatch.setattr(shard_module, "_docker_client", lambda: SimpleNamespace(containers=Containers()))
-    ShardManager.cleanup_scenario_containers("scenariusz-1")
-    ShardManager.cleanup_all_sim_containers()
+    monkeypatch.setattr(containers_module, "_docker_client", lambda: SimpleNamespace(containers=Containers()))
+    NodeContainers.cleanup_scenario_containers("scenariusz-1")
+    NodeContainers.cleanup_all_sim_containers()
     assert calls == [{"label": f"{LABEL_SCENARIO}=scenariusz-1"}, {"label": LABEL_APP}]
 
 

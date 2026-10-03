@@ -88,9 +88,7 @@ class RadioGateway:
         """Replace a dropped Meshtastic TCP session (keeps pubsub subscriptions)."""
         from app.services.meshtastic_tcp import replace_tcp_interface
 
-        host, port = self._endpoints.get(
-            node_id, (settings.meshtastic_tcp_host, settings.tcp_port_base + index)
-        )
+        host, port = self._endpoints[node_id]
         old = self._ifaces.get(node_id)
         iface = replace_tcp_interface(
             old,

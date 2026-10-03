@@ -53,11 +53,8 @@ services:
       SCENARIOS_DIR: /app/scenarios
       DATA_DIR: /app/data
       MESHTASTIC_IMAGE: meshtastic/meshtasticd:latest
-      DRY_RUN: "false"
-      MESHTASTIC_TCP_HOST: host.docker.internal
+      SIM_NODE_ACCESS: network
       SIM_DOCKER_NETWORK: meshtastic_sim
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       - influxdb
 

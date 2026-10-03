@@ -6,7 +6,6 @@ pyyaml>=6.0
 numpy>=1.26
 geopy>=2.4
 itmlogic>=1.2
-srtm-py>=0.3
 meshtastic>=2.5
 docker>=7.0
 influxdb-client>=1.40

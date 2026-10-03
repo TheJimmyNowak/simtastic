@@ -5,7 +5,7 @@ from app.models.environment import LORA_PRESETS, EnvironmentConfig
 from app.models.node import NodeConfig, NodeRole
 from app.services import node_provisioner
 from app.services.node_provisioner import provision_node
-from app.services.shard_manager import ShardManager
+from app.services.node_containers import LABEL_SCENARIO, NodeContainers
 
 LoRaConfig = config_pb2.Config.LoRaConfig
 node_provisioner.ADMIN_GAP_S = 0.0
@@ -68,11 +68,23 @@ def test_custom_preset_is_sent_as_explicit_modem_parameters() -> None:
     assert (lora.spread_factor, lora.bandwidth) == (12, 125)
 
 
-def test_meshtasticd_is_not_started_with_erase_flag() -> None:
-    cmd = ShardManager("scenario", 10)._meshtasticd_cmd(3, 0x13, 4406)
-    assert " -e" not in cmd and "--erase" not in cmd
-    assert "-s -d /data/node_3 " in cmd and "--hwid=0x13" in cmd
-    assert cmd.endswith("echo $! > /tmp/meshtasticd_3.pid")
+def test_node_container_runs_meshtasticd_without_erase_flag() -> None:
+    kwargs = NodeContainers("scenario")._run_kwargs(3)
+    assert kwargs["entrypoint"] == ["meshtasticd"]
+    assert "-e" not in kwargs["command"] and "--erase" not in kwargs["command"]
+    assert kwargs["command"][:3] == ["-s", "-d", "/data"] and "--hwid=19" in kwargs["command"]
+    assert kwargs["labels"][LABEL_SCENARIO] == "scenario"
+
+
+def test_node_access_mode_selects_network_or_published_port(monkeypatch) -> None:
+    from app.services import node_containers
+
+    monkeypatch.setattr(node_containers.settings, "sim_node_access", "network")
+    kwargs = NodeContainers("s")._run_kwargs(0)
+    assert kwargs["network"] == node_containers.settings.sim_docker_network and "ports" not in kwargs
+    monkeypatch.setattr(node_containers.settings, "sim_node_access", "host")
+    kwargs = NodeContainers("s")._run_kwargs(0)
+    assert kwargs["ports"] == {"4403/tcp": ("127.0.0.1", None)} and "network" not in kwargs
 
 
 def test_presets_match_meshtastic_eu868() -> None:

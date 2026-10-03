@@ -35,7 +35,6 @@ class InfluxWriter:
         node_count: int,
         preset: str,
         fading_sigma_db: float,
-        shard_size: int,
         building_model_enabled: bool,
         fresnel_clearance_ratio: float,
     ) -> None:
@@ -47,7 +46,6 @@ class InfluxWriter:
             .tag("preset", preset)
             .field("started", 1)
             .field("fading_sigma_db", float(fading_sigma_db))
-            .field("shard_size", int(shard_size))
             .field("node_count_field", int(node_count))
             .field("building_model_enabled", building_model_enabled)
             .field("fresnel_clearance_ratio", float(fresnel_clearance_ratio))

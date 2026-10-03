@@ -11,14 +11,24 @@ logger = logging.getLogger(__name__)
 
 
 def wait_for_tcp_port(host: str, port: int, timeout: float = 90.0) -> None:
-    """Block until something accepts TCP on host:port (meshtasticd ready)."""
+    """Block until meshtasticd listens on host:port.
+
+    A port published by Docker accepts connections even before the process inside
+    the container listens, and closes them immediately. meshtasticd keeps an idle
+    connection open, so "accepted and still open after a moment" means ready.
+    """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            with socket.create_connection((host, port), timeout=1.0):
-                return
+            with socket.create_connection((host, port), timeout=1.0) as sock:
+                sock.settimeout(0.3)
+                if sock.recv(1) != b"":
+                    return
+        except socket.timeout:
+            return
         except OSError:
-            time.sleep(0.25)
+            pass
+        time.sleep(0.25)
     raise TimeoutError(f"meshtasticd not listening on {host}:{port} after {timeout:.0f}s")
 
 

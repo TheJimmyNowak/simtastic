@@ -1,2 +1,0 @@
-{"sessionId":"de9da9","hypothesisId":"H1","location":"backend/Dockerfile","message":"pre-fix: UTF-16 caused RST_STREAM","data":{"encoding":"UTF-16 BE"},"timestamp":1}
-{"sessionId":"de9da9","runId":"post-fix","hypothesisId":"H1","location":"docker compose build backend","message":"user verification","data":{"exit_code":0,"dockerfile":"ASCII text","image":"inzynierka-2-backend:latest"},"timestamp":2}
