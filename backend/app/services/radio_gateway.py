@@ -1,0 +1,373 @@
+from __future__ import annotations
+
+import logging
+import math
+import random
+import threading
+from typing import Any, Optional
+
+from meshtastic import mesh_pb2, portnums_pb2, protocols as meshtastic_protocols
+from meshtastic.tcp_interface import TCPInterface
+from pubsub import pub
+
+from app.config import settings
+from app.models.node import NodeConfig
+from app.models.packet_trace import LinkAttempt, PacketOtaRx, PacketOtaTx
+from app.services.influx_writer import influx_writer
+from app.services.packet_trace import packet_trace_service
+from app.services.propagation.link_matrix import LinkMatrix
+from app.services.rf_link_model import (
+    compute_rssi_db,
+    compute_snr_db,
+    is_packet_decoded_rssi,
+)
+
+logger = logging.getLogger(__name__)
+
+HW_ID_OFFSET = settings.hw_id_offset
+
+# W trybie `meshtasticd -s` (SimRadio) każda transmisja radiowa węzła jest raportowana
+# jego klientowi jako pakiet SIMULATOR_APP (oryginalny portnum + dane w `Compressed`).
+# Zwykłe odbiory (TEXT_MESSAGE_APP itp.) to pakiety już dostarczone — nie transmisje.
+SIMULATOR_TOPIC = (
+    f"meshtastic.receive.{meshtastic_protocols[portnums_pb2.PortNum.SIMULATOR_APP].name}"
+)
+
+
+class RadioGateway:
+    def __init__(
+        self,
+        scenario_id: str,
+        experiment_id: str,
+        nodes: list[NodeConfig],
+        link_matrix: LinkMatrix,
+        fading_sigma_db: float,
+        random_seed: int | None = None,
+    ) -> None:
+        self.scenario_id = scenario_id
+        self.experiment_id = experiment_id
+        self.nodes = nodes
+        self.link_matrix = link_matrix
+        self.fading_sigma_db = fading_sigma_db
+        self._ifaces: dict[str, TCPInterface] = {}
+        self._id_by_hw: dict[int, str] = {}
+        self._rng = random.Random(random_seed)
+        self._rng_lock = threading.Lock()
+        self._running = False
+        self._lora = None
+
+    def set_lora(self, lora) -> None:
+        self._lora = lora
+
+    def attach_node(self, node_id: str, iface: TCPInterface, index: int) -> None:
+        self._ifaces[node_id] = iface
+        # meshtasticd wyprowadza numer węzła z wygenerowanych kluczy, nie z --hwid,
+        # więc numer bierzemy z handshake'u (myInfo); hwid to tylko fallback.
+        my_info = getattr(iface, "myInfo", None)
+        node_num = int(getattr(my_info, "my_node_num", 0) or (HW_ID_OFFSET + index))
+        for num, known_id in list(self._id_by_hw.items()):
+            if known_id == node_id:
+                del self._id_by_hw[num]
+        self._id_by_hw[node_num] = node_id
+
+    def node_num(self, node_id: str) -> int:
+        for num, known_id in self._id_by_hw.items():
+            if known_id == node_id:
+                return num
+        raise KeyError(node_id)
+
+    def reconnect_node(self, node_id: str, index: int) -> TCPInterface:
+        """Replace a dropped Meshtastic TCP session (keeps pubsub subscriptions)."""
+        from app.services.meshtastic_tcp import replace_tcp_interface
+
+        node = self.nodes[index]
+        host = node.tcp_host or settings.meshtastic_tcp_host
+        port = node.tcp_port or (settings.tcp_port_base + index)
+        old = self._ifaces.get(node_id)
+        iface = replace_tcp_interface(
+            old,
+            host,
+            port,
+            timeout=settings.sim_meshtastic_tcp_timeout_s,
+        )
+        self.attach_node(node_id, iface, index)
+        logger.info("Reconnected gateway to node %s on port %s", node_id, port)
+        return iface
+
+    def activate(self) -> None:
+        pub.subscribe(self._on_mesh_packet, SIMULATOR_TOPIC)
+
+    def disconnect(self) -> None:
+        try:
+            pub.unsubscribe(self._on_mesh_packet, SIMULATOR_TOPIC)
+        except Exception:
+            pass
+        for iface in self._ifaces.values():
+            try:
+                iface.close()
+            except Exception:
+                pass
+        self._ifaces.clear()
+
+    def _node_id_for_interface(self, interface: Any) -> Optional[str]:
+        for node_id, iface in self._ifaces.items():
+            if iface is interface:
+                return node_id
+        return None
+
+    def _on_mesh_packet(
+        self, packet: dict[str, Any], interface: TCPInterface, topic: Any = None
+    ) -> None:
+        if not self._running:
+            return
+        # Nadajnikiem jest węzeł, którego klient zgłosił transmisję — NIE pole `from`,
+        # które przy retransmisji wskazuje pierwotnego autora pakietu.
+        tx_id = self._node_id_for_interface(interface)
+        if tx_id is None:
+            return
+        self._handle_transmission(tx_id, packet)
+
+    @staticmethod
+    def _portnum_int(packet: dict[str, Any]) -> int:
+        decoded = packet.get("decoded") or {}
+        if not isinstance(decoded, dict):
+            decoded = {}
+        raw = decoded.get("portnum", portnums_pb2.PortNum.UNKNOWN_APP)
+        if isinstance(raw, int):
+            return raw
+        name = str(raw)
+        if name.isdigit():
+            return int(name)
+        try:
+            return portnums_pb2.PortNum.Value(name)
+        except ValueError:
+            return portnums_pb2.PortNum.UNKNOWN_APP
+
+    @staticmethod
+    def _inner_payload(packet: dict[str, Any]) -> tuple[str, int]:
+        """Oryginalny portnum i długość danych z opakowania SIMULATOR_APP."""
+        decoded = packet.get("decoded") or {}
+        if not isinstance(decoded, dict):
+            decoded = {}
+        payload = decoded.get("payload", b"")
+        portnum = RadioGateway._portnum_int(packet)
+        if portnum != portnums_pb2.PortNum.SIMULATOR_APP:
+            return portnums_pb2.PortNum.Name(portnum), len(payload) if hasattr(payload, "__len__") else 0
+        inner = mesh_pb2.Compressed()
+        try:
+            inner.ParseFromString(bytes(payload))
+        except Exception:
+            return portnums_pb2.PortNum.Name(portnums_pb2.PortNum.UNKNOWN_APP), 0
+        return portnums_pb2.PortNum.Name(inner.portnum), len(inner.data)
+
+    def _handle_transmission(self, tx_id: str, packet: dict[str, Any]) -> None:
+        portnum, payload_len = self._inner_payload(packet)
+        packet_id = int(packet.get("id", 0))
+        hop_limit = packet.get("hopLimit")
+        hop_start = packet.get("hopStart")
+        to_raw = int(packet.get("to", 0))
+        is_broadcast = to_raw == 0xFFFFFFFF
+        origin_id = self._id_by_hw.get(int(packet.get("from", 0)))
+
+        hop_start_val = int(hop_start) if hop_start is not None else None
+        # MessageToDict pomija zera: brak hopLimit przy obecnym hopStart oznacza 0.
+        if hop_limit is not None:
+            hop_limit_val: Optional[int] = int(hop_limit)
+        else:
+            hop_limit_val = 0 if hop_start_val is not None else None
+        is_rebroadcast = (origin_id is not None and origin_id != tx_id) or (
+            hop_start_val is not None
+            and hop_limit_val is not None
+            and hop_start_val > hop_limit_val
+        )
+
+        tx_evt = PacketOtaTx(
+            scenario_id=self.scenario_id,
+            experiment_id=self.experiment_id,
+            packet_id=packet_id,
+            tx_node=tx_id,
+            origin_node=origin_id,
+            to_node=None if is_broadcast else str(to_raw),
+            is_broadcast=is_broadcast,
+            hop_limit=hop_limit_val,
+            hop_start=hop_start_val,
+            portnum=portnum,
+            payload_len=payload_len,
+            is_rebroadcast=is_rebroadcast,
+        )
+        packet_trace_service.record_tx(tx_evt)
+        influx_writer.write_packet_tx(tx_evt)
+
+        tx_idx = self.link_matrix.index(tx_id)
+        tx_node = self.nodes[tx_idx]
+        lora = self._lora
+        if lora is None:
+            return
+
+        candidates = self.link_matrix.connectivity_neighbors.get(tx_id, [])
+
+        receivers: list[NodeConfig] = []
+        rssis: list[float] = []
+        snrs: list[float] = []
+
+        for rx_id in candidates:
+            if rx_id == tx_id:
+                continue
+            rx_idx = self.link_matrix.index(rx_id)
+            rx_node = self.nodes[rx_idx]
+            pl = float(self.link_matrix.path_loss_median_db[tx_idx, rx_idx])
+            terrain_loss = (
+                float(self.link_matrix.terrain_loss_db[tx_idx, rx_idx])
+                if self.link_matrix.terrain_loss_db is not None
+                else pl
+            )
+            building_loss = (
+                float(self.link_matrix.building_loss_db[tx_idx, rx_idx])
+                if self.link_matrix.building_loss_db is not None
+                else 0.0
+            )
+            blocked_count = (
+                int(self.link_matrix.blocked_buildings_count[tx_idx, rx_idx])
+                if self.link_matrix.blocked_buildings_count is not None
+                else 0
+            )
+            clearance = (
+                float(self.link_matrix.fresnel_clearance_m[tx_idx, rx_idx])
+                if self.link_matrix.fresnel_clearance_m is not None
+                else None
+            )
+            if clearance is not None and not math.isfinite(clearance):
+                clearance = None
+            dominant = (
+                str(self.link_matrix.dominant_building_id[tx_idx, rx_idx]) or None
+                if self.link_matrix.dominant_building_id is not None
+                else None
+            )
+            data_year = (
+                str(self.link_matrix.building_data_year[tx_idx, rx_idx]) or None
+                if self.link_matrix.building_data_year is not None
+                else None
+            )
+            with self._rng_lock:
+                shadow = self._rng.gauss(0.0, self.fading_sigma_db)
+            rssi = compute_rssi_db(
+                lora.tx_power_dbm,
+                tx_node.antenna_gain_tx_db,
+                rx_node.antenna_gain_rx_db,
+                pl,
+                shadow,
+            )
+            snr = compute_snr_db(rssi, rx_node.noise_floor_dbm)
+            delivered = is_packet_decoded_rssi(rssi, lora.sensitivity_dbm)
+
+            att = LinkAttempt(
+                scenario_id=self.scenario_id,
+                experiment_id=self.experiment_id,
+                packet_id=packet_id,
+                tx_node=tx_id,
+                rx_node=rx_id,
+                path_loss_median_db=pl,
+                terrain_loss_db=terrain_loss,
+                building_diffraction_db=building_loss,
+                blocked_buildings_count=blocked_count,
+                fresnel_clearance_m=clearance,
+                dominant_building_id=dominant,
+                building_data_year=data_year,
+                propagation_model="itm+p526_buildings" if self.link_matrix.building_model_enabled else "itm",
+                shadow_db=shadow,
+                rssi_db=rssi,
+                snr_db=snr,
+                delivered=delivered,
+            )
+            packet_trace_service.record_link_attempt(att)
+            influx_writer.write_link_attempt(att)
+
+            if delivered:
+                receivers.append(rx_node)
+                rssis.append(rssi)
+                snrs.append(snr)
+
+        if receivers:
+            self._forward_packet(receivers, packet, rssis, snrs, packet_id)
+
+    @staticmethod
+    def _packet_from_packet(packet: dict[str, Any], data: bytes, portnum: int) -> mesh_pb2.MeshPacket:
+        mesh_packet = mesh_pb2.MeshPacket()
+        mesh_packet.decoded.payload = data
+        mesh_packet.decoded.portnum = portnum
+        mesh_packet.to = packet["to"]
+        setattr(mesh_packet, "from", packet["from"])
+        mesh_packet.id = packet["id"]
+        mesh_packet.want_ack = packet.get("wantAck", mesh_packet.want_ack)
+        if packet.get("hopLimit") is not None:
+            mesh_packet.hop_limit = packet["hopLimit"]
+        if packet.get("hopStart") is not None:
+            mesh_packet.hop_start = packet["hopStart"]
+        mesh_packet.channel = int(packet.get("channel", mesh_packet.channel))
+        if packet.get("nextHop") is not None:
+            mesh_packet.next_hop = int(packet["nextHop"])
+        if packet.get("relayNode") is not None:
+            mesh_packet.relay_node = int(packet["relayNode"])
+        if "requestId" in packet.get("decoded", {}):
+            mesh_packet.decoded.request_id = packet["decoded"]["requestId"]
+        return mesh_packet
+
+    def _air_packet(self, packet: dict[str, Any]) -> mesh_pb2.MeshPacket:
+        """Pakiet „na eterze” do wstrzyknięcia odbiorcom (portnum SIMULATOR_APP)."""
+        raw = packet.get("raw")
+        if isinstance(raw, mesh_pb2.MeshPacket):
+            # Pełna kopia zachowuje m.in. next_hop / relay_node (NextHopRouter, fw 2.6+).
+            mesh_packet = mesh_pb2.MeshPacket()
+            mesh_packet.CopyFrom(raw)
+            for field in ("rx_time", "rx_snr", "rx_rssi"):
+                mesh_packet.ClearField(field)
+            return mesh_packet
+        data = packet["decoded"]["payload"]
+        if hasattr(data, "SerializeToString"):
+            data = data.SerializeToString()
+        elif not isinstance(data, (bytes, bytearray)):
+            data = bytes(data) if data else b""
+        return self._packet_from_packet(packet, data, self._portnum_int(packet))
+
+    def _forward_packet(
+        self,
+        receivers: list[NodeConfig],
+        packet: dict[str, Any],
+        rssis: list[float],
+        snrs: list[float],
+        packet_id: int,
+    ) -> None:
+        mesh_packet = self._air_packet(packet)
+        if mesh_packet.decoded.portnum != portnums_pb2.PortNum.SIMULATOR_APP:
+            # Inny portnum firmware traktuje jako wiadomość od klienta (from := 0)
+            # i nadałby ją jako własną — to nie byłby odbiór radiowy.
+            logger.warning("Not forwarding non-SIMULATOR_APP packet %s", packet_id)
+            return
+        for i, rx in enumerate(receivers):
+            mesh_packet.rx_rssi = int(round(rssis[i]))
+            mesh_packet.rx_snr = float(snrs[i])
+            to_radio = mesh_pb2.ToRadio()
+            to_radio.packet.CopyFrom(mesh_packet)
+            iface = self._ifaces.get(rx.id)
+            if iface is None:
+                continue
+            try:
+                iface._sendToRadio(to_radio)
+            except Exception as exc:
+                logger.warning("Forward to %s failed: %s", rx.id, exc)
+                continue
+            rx_evt = PacketOtaRx(
+                scenario_id=self.scenario_id,
+                experiment_id=self.experiment_id,
+                packet_id=packet_id,
+                rx_node=rx.id,
+                rssi_db=rssis[i],
+                snr_db=snrs[i],
+            )
+            packet_trace_service.record_rx(rx_evt)
+
+    def start(self) -> None:
+        self._running = True
+
+    def stop(self) -> None:
+        self._running = False

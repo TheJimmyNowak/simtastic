@@ -1,0 +1,17 @@
+apiVersion: 1
+
+datasources:
+  - name: InfluxDB (meshtastic_sim)
+    uid: influx-meshtastic
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMode: POST
+      version: Flux
+      organization: meshtastic
+      defaultBucket: meshtastic_sim
+    secureJsonData:
+      token: meshtastic-dev-token

@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/
+frontend/dist/
+data/scenarios/
+data/buildings_raw/
+data/buildings/
+scenarios/*.yaml
+!scenarios/.gitkeep
+.env
+*.egg-info/
+.DS_Store

@@ -1,0 +1,66 @@
+networks:
+  meshtastic_sim:
+    name: meshtastic_sim
+
+services:
+  influxdb:
+    image: influxdb:2.7
+    ports:
+      - "127.0.0.1:8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: adminadmin
+      DOCKER_INFLUXDB_INIT_ORG: meshtastic
+      DOCKER_INFLUXDB_INIT_BUCKET: meshtastic_sim
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: meshtastic-dev-token
+    volumes:
+      - influx_data:/var/lib/influxdb2
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: http://localhost:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - influxdb
+
+  backend:
+    build: ./backend
+    networks:
+      - default
+      - meshtastic_sim
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./data:/app/data
+      - ./scenarios:/app/scenarios
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_TOKEN: meshtastic-dev-token
+      INFLUX_ORG: meshtastic
+      INFLUX_BUCKET: meshtastic_sim
+      SRTM_CACHE_DIR: /app/data/srtm_cache
+      SCENARIOS_DIR: /app/scenarios
+      DATA_DIR: /app/data
+      MESHTASTIC_IMAGE: meshtastic/meshtasticd:latest
+      DRY_RUN: "false"
+      MESHTASTIC_TCP_HOST: host.docker.internal
+      SIM_DOCKER_NETWORK: meshtastic_sim
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - influxdb
+
+volumes:
+  influx_data:
+  grafana_data:

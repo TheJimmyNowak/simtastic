@@ -1,0 +1,347 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "panels": [],
+      "title": "Rodzaje wiadomości (OTA TX)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+          "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> count()",
+          "refId": "A"
+        }
+      ],
+      "title": "Łącznie transmisji OTA",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+          "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> group(columns: [\"portnum\"])\n  |> count()\n  |> group()\n  |> count(column: \"_value\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Liczba różnych typów (portnum)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "hideFrom": { "legend": false, "tooltip": false, "viz": false } },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "displayLabels": ["name", "percent"],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": ["value", "percent"]
+        },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+          "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> group(columns: [\"portnum\"])\n  |> count()\n  |> group()\n  |> rename(columns: {_value: \"liczba\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Udział typów wiadomości",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineWidth": 1,
+            "scaleDistribution": { "type": "linear" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 6 },
+      "id": 4,
+      "options": {
+        "barRadius": 0.1,
+        "barWidth": 0.8,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
+        "orientation": "horizontal",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": { "mode": "single", "sort": "none" },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+          "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> group(columns: [\"portnum\"])\n  |> count()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)",
+          "refId": "A"
+        }
+      ],
+      "title": "Liczba pakietów wg typu (portnum)",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "inspect": false
+          },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "udzial_proc" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              { "id": "decimals", "value": 1 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "portnum" },
+            "properties": [{ "id": "displayName", "value": "Typ (portnum)" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "liczba" },
+            "properties": [{ "id": "displayName", "value": "Liczba" }]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 11 },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Liczba" }]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+          "query": "perType =\n  from(bucket: \"meshtastic_sim\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n    |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n    |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n    |> filter(fn: (r) => r._field == \"packet_id\")\n    |> group(columns: [\"portnum\"])\n    |> count()\n    |> rename(columns: {_value: \"liczba\"})\n\ntotal = perType |> sum(column: \"liczba\") |> findRecord(fn: (key) => true, idx: 0)\n\nperType\n  |> map(fn: (r) => ({\n      portnum: r.portnum,\n      liczba: r.liczba,\n      udzial_proc: if exists v: total._value and total._value > 0 then float(v: r.liczba) / float(v: total._value) * 100.0 else 0.0,\n    }))\n  |> sort(columns: [\"liczba\"], desc: true)",
+          "refId": "A"
+        }
+      ],
+      "title": "Tabela: typ, liczba, udział %",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineWidth": 1,
+            "scaleDistribution": { "type": "linear" },
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 21 },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+          "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> group(columns: [\"portnum\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: count, createEmpty: false)\n  |> group(columns: [\"portnum\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "Transmisje wg typu w czasie (stacked)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
+      "id": 101,
+      "panels": [],
+      "title": "Per węzeł nadawczy",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "inspect": false
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 31 },
+      "id": 7,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Liczba" }]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+          "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> group(columns: [\"tx_node\", \"portnum\"])\n  |> count()\n  |> rename(columns: {_value: \"liczba\"})\n  |> group()\n  |> sort(columns: [\"liczba\"], desc: true)",
+          "refId": "A"
+        }
+      ],
+      "title": "Typ wiadomości × węzeł TX",
+      "type": "table"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["meshtastic", "routing"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+        "definition": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(bucket: \"meshtastic_sim\", tag: \"scenario_id\", start: -30d)",
+        "hide": 0,
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Scenariusz",
+        "multi": true,
+        "name": "scenario_id",
+        "options": [],
+        "query": {
+          "query": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(bucket: \"meshtastic_sim\", tag: \"scenario_id\", start: -30d)"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+        "definition": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(bucket: \"meshtastic_sim\", tag: \"experiment_id\", start: -30d)",
+        "hide": 0,
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Eksperyment",
+        "multi": true,
+        "name": "experiment_id",
+        "options": [],
+        "query": {
+          "query": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(bucket: \"meshtastic_sim\", tag: \"experiment_id\", start: -30d)"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Meshtastic — rodzaje wiadomości",
+  "uid": "meshtastic-msg-types",
+  "version": 1
+}

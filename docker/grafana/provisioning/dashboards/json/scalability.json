@@ -1,0 +1,168 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [
+    { "title": "Przegląd KPI", "url": "/d/meshtastic-overview", "type": "link", "icon": "dashboard" },
+    { "title": "Routing", "url": "/d/meshtastic-routing", "type": "link", "icon": "dashboard" }
+  ],
+  "panels": [
+    {
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "id": 200,
+      "options": {
+        "content": "**Workflow:** dla każdej liczby węzłów N ustaw unikalny `experiment_id` w panelu środowiska UI → uruchom symulację → porównaj runy na tym dashboardzie. Tag `node_count` pochodzi z `simulation_run` i jest kopiowany na metryki TX/RF.",
+        "mode": "markdown"
+      },
+      "title": "",
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" } } },
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 3 },
+      "id": 1,
+      "options": { "showHeader": true },
+      "targets": [{
+        "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"simulation_run\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"fading_sigma_db\" or r._field == \"shard_size\" or r._field == \"started\")\n  |> pivot(rowKey: [\"_time\", \"experiment_id\", \"node_count\", \"preset\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group(columns: [\"experiment_id\", \"node_count\", \"preset\"])\n  |> last(column: \"_time\")\n  |> group()",
+        "refId": "A"
+      }],
+      "title": "Eksperymenty w oknie (simulation_run)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "points", "pointSize": 8 } } },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 10 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "table", "placement": "right" }, "tooltip": { "mode": "multi" } },
+      "targets": [{
+        "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> group(columns: [\"experiment_id\", \"node_count\"])\n  |> count()\n  |> group()",
+        "refId": "A"
+      }],
+      "title": "Łączne TX OTA per eksperyment (vs node_count)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 70 } } },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 10 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{
+        "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"link_attempt\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> group(columns: [\"experiment_id\", \"node_count\"])\n  |> count()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)",
+        "refId": "A"
+      }],
+      "title": "Próby RF vs N (per experiment_id)",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineWidth": 2 } } },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 19 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"link_attempt\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> group(columns: [\"node_count\"])\n  |> count()\n  |> group()\n  |> map(fn: (r) => ({r with _field: \"rzeczywiste próby RF\"}))",
+          "refId": "actual"
+        },
+        {
+          "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"simulation_run\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> group(columns: [\"node_count\"])\n  |> last()\n  |> map(fn: (r) => ({\n      _time: r._time,\n      node_count: r.node_count,\n      _field: \"O(N²) referencja\",\n      _value: float(v: int(v: r.node_count)) * float(v: int(v: r.node_count)),\n    }))\n  |> group()",
+          "refId": "n2"
+        }
+      ],
+      "title": "Próby RF vs O(N²) (referencja)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 19 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{
+        "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"link_attempt\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> group(columns: [\"experiment_id\", \"node_count\", \"delivered\"])\n  |> count()\n  |> group(columns: [\"experiment_id\", \"node_count\"])\n  |> pivot(rowKey: [\"experiment_id\", \"node_count\"], columnKey: [\"delivered\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({\n      experiment_id: r.experiment_id,\n      node_count: r.node_count,\n      _value: if exists r[\"True\"] then float(v: r[\"True\"]) / (float(v: r[\"True\"]) + float(v: if exists r[\"False\"] then r[\"False\"] else 0)) * 100.0 else 0.0,\n    }))\n  |> group()",
+        "refId": "A"
+      }],
+      "title": "Delivery ratio vs N",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{
+        "query": "total =\n  from(bucket: \"meshtastic_sim\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n    |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n    |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n    |> filter(fn: (r) => r._field == \"packet_id\")\n    |> group(columns: [\"experiment_id\", \"node_count\"])\n    |> count()\n    |> group()\n    |> set(key: \"kind\", value: \"total\")\n\nreb =\n  from(bucket: \"meshtastic_sim\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n    |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n    |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n    |> filter(fn: (r) => r._field == \"is_rebroadcast\")\n    |> filter(fn: (r) => r._value == true)\n    |> group(columns: [\"experiment_id\", \"node_count\"])\n    |> count()\n    |> group()\n    |> set(key: \"kind\", value: \"reb\")\n\nunion(tables: [total, reb])\n  |> group(columns: [\"experiment_id\", \"node_count\", \"kind\"])\n  |> sum(column: \"_value\")\n  |> group(columns: [\"experiment_id\", \"node_count\"])\n  |> pivot(rowKey: [\"experiment_id\", \"node_count\"], columnKey: [\"kind\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({\n      experiment_id: r.experiment_id,\n      node_count: r.node_count,\n      _value: if exists r.total and r.total > 0 and exists r.reb then float(v: r.reb) / float(v: r.total) * 100.0 else 0.0,\n    }))\n  |> group()",
+        "refId": "A"
+      }],
+      "title": "Rebroadcast load vs N",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 70 } } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{
+        "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> group(columns: [\"tx_node\"])\n  |> count()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 20)",
+        "refId": "A"
+      }],
+      "title": "Obciążenie TX per węzeł (hot spot)",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" } } },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 36 },
+      "id": 8,
+      "options": { "showHeader": true },
+      "targets": [{
+        "query": "tx =\n  from(bucket: \"meshtastic_sim\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n    |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n    |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n    |> filter(fn: (r) => r._field == \"packet_id\")\n    |> group(columns: [\"experiment_id\", \"node_count\"])\n    |> count()\n    |> group()\n    |> set(key: \"metric\", value: \"tx_total\")\n\nattempts =\n  from(bucket: \"meshtastic_sim\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) => r._measurement == \"link_attempt\")\n    |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n    |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n    |> filter(fn: (r) => r._field == \"packet_id\")\n    |> group(columns: [\"experiment_id\", \"node_count\"])\n    |> count()\n    |> group()\n    |> set(key: \"metric\", value: \"rf_attempts\")\n\ndelivered =\n  from(bucket: \"meshtastic_sim\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) => r._measurement == \"link_attempt\")\n    |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n    |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n    |> filter(fn: (r) => r.delivered == \"True\")\n    |> filter(fn: (r) => r._field == \"packet_id\")\n    |> group(columns: [\"experiment_id\", \"node_count\"])\n    |> count()\n    |> group()\n    |> set(key: \"metric\", value: \"rf_ok\")\n\nreb =\n  from(bucket: \"meshtastic_sim\")\n    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n    |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n    |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n    |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n    |> filter(fn: (r) => r._field == \"is_rebroadcast\")\n    |> filter(fn: (r) => r._value == true)\n    |> group(columns: [\"experiment_id\", \"node_count\"])\n    |> count()\n    |> group()\n    |> set(key: \"metric\", value: \"rebroadcasts\")\n\nunion(tables: [tx, attempts, delivered, reb])\n  |> group(columns: [\"experiment_id\", \"node_count\", \"metric\"])\n  |> sum(column: \"_value\")\n  |> group(columns: [\"experiment_id\", \"node_count\"])\n  |> pivot(rowKey: [\"experiment_id\", \"node_count\"], columnKey: [\"metric\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({\n      experiment_id: r.experiment_id,\n      node_count: r.node_count,\n      tx_total: r.tx_total,\n      rf_attempts: r.rf_attempts,\n      delivery_pct: if exists r.rf_attempts and r.rf_attempts > 0 and exists r.rf_ok then float(v: r.rf_ok) / float(v: r.rf_attempts) * 100.0 else 0.0,\n      rebroadcast_pct: if exists r.tx_total and r.tx_total > 0 and exists r.rebroadcasts then float(v: r.rebroadcasts) / float(v: r.tx_total) * 100.0 else 0.0,\n    }))\n  |> group()",
+        "refId": "A"
+      }],
+      "title": "Porównanie eksperymentów (jeden wiersz per experiment_id)",
+      "type": "table"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["meshtastic", "scalability"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Scenariusz",
+        "multi": true,
+        "name": "scenario_id",
+        "query": { "query": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(bucket: \"meshtastic_sim\", tag: \"scenario_id\", start: -30d)" },
+        "refresh": 2,
+        "type": "query"
+      },
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Eksperyment",
+        "multi": true,
+        "name": "experiment_id",
+        "query": { "query": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(bucket: \"meshtastic_sim\", tag: \"experiment_id\", start: -30d)" },
+        "refresh": 2,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "Meshtastic — skalowalność",
+  "uid": "meshtastic-scalability",
+  "version": 2
+}

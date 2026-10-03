@@ -1,0 +1,177 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [
+    { "title": "Przegląd KPI", "url": "/d/meshtastic-overview", "type": "link", "icon": "dashboard" },
+    { "title": "Skalowalność", "url": "/d/meshtastic-scalability", "type": "link", "icon": "dashboard" }
+  ],
+  "panels": [
+    {
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "id": 200,
+      "options": {
+        "content": "**Interpretacja:** `packet_ota_tx` = kolejne nadania tego samego `packet_id` (w tym rebroadcasty meshtasticd). `link_attempt` = pojedynczy skok RF (TX→RX). Pełna trasa ≈ sekwencja TX + zgodne krawędzie RF w czasie. To nie jest oficjalna tabela routingu firmware.",
+        "mode": "markdown"
+      },
+      "title": "",
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" } } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 3 },
+      "id": 1,
+      "options": { "showHeader": true, "sortBy": [{ "desc": false, "displayName": "Time" }] },
+      "targets": [{
+        "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => \"${packet_id}\" != \"\")\n  |> pivot(rowKey: [\"_time\", \"tx_node\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> filter(fn: (r) => exists r.packet_id and string(v: r.packet_id) == \"${packet_id}\")\n  |> keep(columns: [\"_time\", \"tx_node\", \"is_rebroadcast\", \"hop_limit\", \"hop_start\"])\n  |> group()\n  |> sort(columns: [\"_time\"])",
+        "refId": "A"
+      }],
+      "title": "Łańcuch TX (czas, węzeł, rebroadcast, hop)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" } } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 3 },
+      "id": 2,
+      "options": { "showHeader": true },
+      "targets": [{
+        "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"link_attempt\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r.delivered == \"True\")\n  |> filter(fn: (r) => \"${packet_id}\" != \"\")\n  |> pivot(rowKey: [\"_time\", \"tx_node\", \"rx_node\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> filter(fn: (r) => exists r.packet_id and string(v: r.packet_id) == \"${packet_id}\")\n  |> keep(columns: [\"_time\", \"tx_node\", \"rx_node\", \"rssi_db\", \"snr_db\"])\n  |> group()\n  |> sort(columns: [\"_time\"])",
+        "refId": "A"
+      }],
+      "title": "Krawędzie RF (dostarczone) dla pakietu",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" } } },
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 11 },
+      "id": 3,
+      "options": { "showHeader": true },
+      "targets": [{
+        "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => \"${packet_id}\" != \"\")\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> filter(fn: (r) => string(v: r._value) == \"${packet_id}\")\n  |> keep(columns: [\"_time\", \"tx_node\"])\n  |> rename(columns: {tx_node: \"krok\"})\n  |> group()\n  |> sort(columns: [\"_time\"])",
+        "refId": "A"
+      }],
+      "title": "Kolejność węzłów TX (diagram kroków)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 80 } } },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "orientation": "horizontal" },
+      "targets": [{
+        "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"is_rebroadcast\")\n  |> filter(fn: (r) => r._value == true)\n  |> group(columns: [\"tx_node\"])\n  |> count()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 30)",
+        "refId": "A"
+      }],
+      "title": "Rebroadcasty wg węzła",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> pivot(rowKey: [\"_time\", \"tx_node\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> filter(fn: (r) => exists r.is_rebroadcast and r.is_rebroadcast == false)\n  |> keep(columns: [\"_time\", \"hop_limit\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+          "refId": "first"
+        },
+        {
+          "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> pivot(rowKey: [\"_time\", \"tx_node\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> filter(fn: (r) => exists r.is_rebroadcast and r.is_rebroadcast == true)\n  |> keep(columns: [\"_time\", \"hop_limit\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+          "refId": "reb"
+        }
+      ],
+      "title": "Średni hop_limit: pierwszy TX vs rebroadcast",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" } } },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "id": 6,
+      "options": { "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Time" }] },
+      "targets": [{
+        "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r.portnum == \"TRACEROUTE_APP\")\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> group(columns: [\"tx_node\"])\n  |> last()\n  |> rename(columns: {_value: \"packet_id\"})\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 50)",
+        "refId": "A"
+      }],
+      "title": "Traceroute wysłane (TRACEROUTE_APP)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto" },
+          "color": { "mode": "continuous-GrYlRd" }
+        }
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 24 },
+      "id": 7,
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "dostarczenia" }]
+      },
+      "targets": [{
+        "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"link_attempt\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r.delivered == \"True\")\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> group(columns: [\"tx_node\", \"rx_node\"])\n  |> count()\n  |> rename(columns: {_value: \"dostarczenia\"})\n  |> group()\n  |> sort(columns: [\"dostarczenia\"], desc: true)",
+        "refId": "A"
+      }],
+      "title": "Macierz dostaw RF (TX × RX, liczba udanych skoków)",
+      "type": "table"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["meshtastic", "routing"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Scenariusz",
+        "multi": true,
+        "name": "scenario_id",
+        "query": { "query": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(bucket: \"meshtastic_sim\", tag: \"scenario_id\", start: -30d)" },
+        "refresh": 2,
+        "type": "query"
+      },
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Eksperyment",
+        "multi": true,
+        "name": "experiment_id",
+        "query": { "query": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(bucket: \"meshtastic_sim\", tag: \"experiment_id\", start: -30d)" },
+        "refresh": 2,
+        "type": "query"
+      },
+      {
+        "current": { "selected": false, "text": "", "value": "" },
+        "datasource": { "type": "influxdb", "uid": "influx-meshtastic" },
+        "includeAll": false,
+        "label": "packet_id",
+        "name": "packet_id",
+        "query": {
+          "query": "from(bucket: \"meshtastic_sim\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"packet_ota_tx\")\n  |> filter(fn: (r) => r.scenario_id =~ /${scenario_id:regex}/)\n  |> filter(fn: (r) => r.experiment_id =~ /${experiment_id:regex}/)\n  |> filter(fn: (r) => r._field == \"packet_id\")\n  |> distinct(column: \"_value\")\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 200)"
+        },
+        "refresh": 1,
+        "regex": "",
+        "sort": 2,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "title": "Meshtastic — routing i ścieżki",
+  "uid": "meshtastic-routing",
+  "version": 2
+}
