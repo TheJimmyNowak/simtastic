@@ -99,3 +99,27 @@ def test_progress_is_kept_in_memory_only(store: ScenarioStore) -> None:
     assert store.get(scenario.id).progress_done == 4
     saved = (store._base / scenario.id / "scenario.yaml").read_text()
     assert "progress_done" not in saved
+
+
+def test_editing_runtime_settings_keeps_links(store: ScenarioStore, monkeypatch) -> None:
+    from app.api.routes import scenarios as routes
+
+    scenario = _scenario(store, "edit", ScenarioStatus.LINKS_READY)
+    deleted: list[str] = []
+    monkeypatch.setattr(routes, "scenario_store", store)
+    monkeypatch.setattr(routes, "delete_link_matrix", deleted.append)
+    current = {"matrix": _valid_matrix(scenario)}
+    monkeypatch.setattr(sim_module, "load_link_matrix", lambda _: current["matrix"])
+
+    body = ScenarioCreate(
+        name="edit",
+        environment=scenario.environment.model_copy(update={"experiment_id": "exp2", "fading_sigma_db": 3}),
+        nodes=[node.model_copy(update={"hop_limit": 5}) for node in scenario.nodes],
+    )
+    assert routes.update_scenario(scenario.id, body).status == ScenarioStatus.LINKS_READY
+    assert deleted == []
+
+    moved = body.model_copy(update={"nodes": [body.nodes[0].model_copy(update={"lat": 50.5}), body.nodes[1]]})
+    current["matrix"] = None
+    assert routes.update_scenario(scenario.id, moved).status == ScenarioStatus.DRAFT
+    assert deleted == [scenario.id]

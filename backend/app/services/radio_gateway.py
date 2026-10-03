@@ -193,7 +193,7 @@ class RadioGateway:
             packet_id=packet_id,
             tx_node=tx_id,
             origin_node=origin_id,
-            to_node=None if is_broadcast else str(to_raw),
+            to_node=None if is_broadcast else self._id_by_hw.get(to_raw, f"!{to_raw:08x}"),
             is_broadcast=is_broadcast,
             hop_limit=hop_limit_val,
             hop_start=hop_start_val,

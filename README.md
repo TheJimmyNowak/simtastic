@@ -45,7 +45,8 @@ PYTHONPATH=backend .venv/bin/uvicorn app.main:app --port 8000
 cd frontend && npm install && npm run dev
 ```
 
-Otwórz http://localhost:5173 (Vite przekazuje `/api` do backendu na porcie 8000).
+Otwórz http://localhost:5173 (Vite przekazuje `/api` do backendu na porcie 8000; inny adres:
+`BACKEND_URL=http://localhost:8001 npm run dev`).
 
 **Grafana**: http://localhost:3000 — `admin` / `admin`. Datasource InfluxDB (Flux, org `meshtastic`, bucket `meshtastic_sim`) jest provisionowany z [docker/grafana/provisioning](docker/grafana/provisioning).
 

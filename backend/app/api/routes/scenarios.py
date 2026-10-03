@@ -2,9 +2,10 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException
 
-from app.models.scenario import ACTIVE_STATUSES, Scenario, ScenarioCreate, ScenarioStatus
+from app.models.scenario import ACTIVE_STATUSES, Scenario, ScenarioCreate
 from app.services.scenario_store import scenario_store
-from app.services.propagation.link_matrix import delete_link_matrix
+from app.services.propagation.link_matrix import compute_scenario_fingerprint, delete_link_matrix
+from app.services.simulation_manager import idle_status
 
 router = APIRouter(prefix="/api/scenarios", tags=["scenarios"])
 
@@ -34,14 +35,20 @@ def update_scenario(scenario_id: str, body: ScenarioCreate) -> Scenario:
         raise HTTPException(404, "Scenario not found")
     if s.status in ACTIVE_STATUSES:
         raise HTTPException(409, "Stop the simulation before editing the scenario")
+    # Only inputs of the propagation model invalidate the ITM matrix; runtime settings
+    # (experiment id, fading, seed, hop limit, role, names) keep the computed links.
+    model_changed = compute_scenario_fingerprint(s.nodes, s.environment) != compute_scenario_fingerprint(
+        body.nodes, body.environment
+    )
     s.name = body.name
     s.environment = body.environment
     s.nodes = body.nodes
-    s.status = ScenarioStatus.DRAFT
     s.progress_done = 0
     s.progress_total = 0
     s.error_message = None
-    delete_link_matrix(scenario_id)
+    if model_changed:
+        delete_link_matrix(scenario_id)
+    s.status = idle_status(scenario_id)
     return scenario_store.update(s)
 
 
