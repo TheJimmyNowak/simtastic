@@ -84,10 +84,18 @@ logi firmware: `docker logs sim-<scenariusz>-node-0`.
 ### Budynki LoD1
 
 `agl_m` jest wysokością masztu nad terenem albo nad dachem. Węzeł wewnątrz obrysu
-CityGML jest automatycznie montowany na dachu. Indeks 227 dostarczonych plików można
-odtworzyć poleceniem:
+CityGML jest automatycznie montowany na dachu.
+
+Dane to modele 3D budynków LoD1 z GUGiK (licencja CC BY 4.0), w paczkach powiatowych według
+kodu TERYT. Kod powiatu dla danego punktu podaje usługa WMS geoportalu (warstwa
+`Modele_3D_budynkow_LoD1_2024`, zapytanie GetFeatureInfo). W repozytorium są: jarosławski
+(1804), łańcucki (1810), przeworski (1814), rzeszowski (1816), Przemyśl (1862) i Rzeszów (1863).
+Kolejny powiat:
 
 ```bash
+T=1863   # kod TERYT powiatu
+curl -LO https://opendata.geoportal.gov.pl/InneDane/Budynki3D/LOD1/2024/${T:0:2}/$T.zip
+mkdir -p data/buildings_raw/$T && unzip -j $T.zip -d data/buildings_raw/$T
 PYTHONPATH=backend python scripts/import_buildings.py --force
 ```
 

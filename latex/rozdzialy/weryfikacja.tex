@@ -84,18 +84,18 @@ Porównanie dotyczy 72 par nadawca i bramka oraz trzech wariantów modelu łącz
 \hline
  & \textbf{Fizyczny} & \textbf{Seed 1} & \textbf{Seed 2} \\
 \hline
-Pary osiągnięte w symulacji & 51 & 51 & 44 \\
-Łącza bezpośrednie (symulacja / sieć) & 44 / 12 & 25 / 11 & 24 / 11 \\
-Zgodność: bezpośrednio czy przez pośrednika & 37\% & 65\% & 61\% \\
-Ta sama liczba skoków & 27\% & 33\% & 36\% \\
-Średnia różnica liczby skoków & \(-1{,}47\) & \(-0{,}92\) & \(-0{,}93\) \\
-Ten sam węzeł pośredniczący z klastra & brak przypadków & 6 z 6 & 3 z 6 \\
+Pary osiągnięte w symulacji & 53 & 58 & 44 \\
+Łącza bezpośrednie (symulacja / sieć) & 44 / 12 & 26 / 13 & 24 / 11 \\
+Zgodność: bezpośrednio czy przez pośrednika & 40\% & 67\% & 61\% \\
+Ta sama liczba skoków & 26\% & 33\% & 36\% \\
+Średnia różnica liczby skoków & \(-1{,}45\) & \(-0{,}88\) & \(-0{,}93\) \\
+Ten sam węzeł pośredniczący z klastra & 1 z 1 & 8 z 8 & 3 z 6 \\
 \hline
 \end{tabular}
 \end{table}
 
-W wariancie fizycznym prawie każdy węzeł słyszy bramkę bezpośrednio. Trasy wychodzą więc o półtora skoku krótsze niż w sieci, a retransmisji praktycznie nie ma czego porównywać. Po kalibracji zgodność co do tego, czy pakiet idzie bezpośrednio, czy przez pośrednika, rośnie z 37\% do ponad 60\%. Gdy w prawdziwej sieci pakiet przekazuje węzeł z klastra, symulacja wskazuje ten sam węzeł w dziewięciu przypadkach na dwanaście.
+W wariancie fizycznym prawie każdy węzeł słyszy bramkę bezpośrednio. Trasy wychodzą więc o półtora skoku krótsze niż w sieci, a retransmisji praktycznie nie ma czego porównywać. Po kalibracji zgodność co do tego, czy pakiet idzie bezpośrednio, czy przez pośrednika, rośnie z 40\% do ponad 60\%. Gdy w prawdziwej sieci pakiet przekazuje węzeł z klastra, symulacja wskazuje ten sam węzeł w 11 przypadkach na 14.
 
-Część rozbieżności zostanie zawsze. W prawdziwej sieci wiele tras przechodzi przez węzły spoza klastra, które nie podają dokładnej pozycji i nie mogły zostać umieszczone w symulacji. Stąd w symulacji nadal brakuje średnio około jednego skoku, a mniej więcej co trzecia para jest w ogóle nieosiągalna. Widać też, że wynik zależy od losowania cieniowania. Wnioski o routingu trzeba więc wyciągać z kilku przebiegów.
+Część rozbieżności zostanie zawsze. W prawdziwej sieci wiele tras przechodzi przez węzły spoza klastra, które nie podają dokładnej pozycji i nie mogły zostać umieszczone w symulacji. Stąd w symulacji nadal brakuje średnio około jednego skoku, a od jednej piątej do ponad jednej trzeciej par jest w ogóle nieosiągalnych. Widać też, że wynik zależy od losowania cieniowania. Wnioski o routingu trzeba więc wyciągać z kilku przebiegów.
 
 Trzeba też uczciwie zaznaczyć jedną rzecz. Parametry kalibracji zostały dobrane na tych samych parach węzłów, na których potem sprawdzany jest routing. Kalibracja dotyczyła wyłącznie łączy, a routing robi niezmieniony firmware, więc test nie jest pozbawiony sensu. Nie jest jednak w pełni niezależny. Lepszą weryfikację dałby drugi, osobny zbiór danych, na przykład z innego okresu albo z pomiarów prowadzonych celowo.

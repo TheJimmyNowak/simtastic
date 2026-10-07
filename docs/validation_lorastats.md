@@ -174,6 +174,53 @@ Domyślnie `clutter_loss_db = 0` i `link_shadowing_sigma_db = 0` (czysty model f
 Do badań łączności i routingu sieci podobnej do rzeczywistej: 25–30 dB i σ = 20 dB
 z ustalonym `link_shadowing_seed`.
 
+## Budynki: klaster k1 (Rzeszów)
+
+Dane: modele 3D budynków LoD1 2024 z GUGiK dla powiatów, w których leżą węzły i trasy
+między nimi: Rzeszów (1863, 39 388 budynków), rzeszowski (1816), łańcucki (1810), przeworski
+(1814) i jarosławski (1804); indeks ma 309 340 budynków.
+
+**Wysokości anten.** Trzy węzły leżą w obrysie budynku i symulator montuje je na dachu. Dla
+węzłów z wysokością z raportu (n.p.m.) ta wartość już zawiera budynek, więc maszt liczony jest
+od dachu: `max(1 m, wysokość z raportu − wysokość budynku)`. Wariant bez budynków dostaje tę
+samą całkowitą wysokość anteny nad terenem, więc warianty różnią się wyłącznie przeszkodami.
+
+**Teren.** Węzły stoją na wysokości od 203 do 386 m n.p.m. (mediana 220 m). Rzeszów leży w
+dolinie Wisłoka, a okolice Łańcuta to płaski teren; obie części na wysokości około 200–230 m; od południa i zachodu
+podnosi się pogórze (Magda_Lena 386 m, Santiago_de_Compostela 317 m, Matysówka 290 m), na
+północy (Nienadówka, 238 m) teren jest płaski. Z 36 par krótszych niż 25 km:
+
+- mediana rozstępu wysokości na profilu (90. − 10. percentyl, parametr Δh w ITM) 55 m,
+- 14 par ma teren ponad linią widoczności (z krzywizną Ziemi, k = 4/3); najwięcej ITM dokłada
+  na trasach z pogórza na północ, np. Matysówka–Łańcut (12 km): przeszkoda 97 m nad linią,
+  strata o 49 dB większa niż w wolnej przestrzeni,
+- 23 pary mają budynki w 60% pierwszej strefy Fresnela; strata od budynków 2–27 dB.
+
+Zabudowa w promieniu 500 m od węzła: centrum Rzeszowa 360 budynków (mediana wysokości 11,9 m,
+90. percentyl 17,6 m), osiedle przy węźle Betonowy_las 114 budynków (90. percentyl 33 m, bloki),
+wsie i przedmieścia 3–85 budynków o medianie 3,5–7 m.
+
+**Łącza** (11 par z obserwacją w lorastats): zgodność „jest / nie ma łącza” 6/11 w obu
+wariantach — budynki naprawiają jedną fałszywą krawędź (voorjaarman → Betonowy_las) i psują
+jedno prawdziwe łącze 36 km (Magda_Lena → Jarosław). Błąd RSSI działających łączy zmienia się
+z +2,4 dB na −7,6 dB (n = 6).
+
+**Routing** (aplikacja, `meshtasticd`, kolizje włączone, 16 par nadawca → bramka):
+
+| | bez budynków | z budynkami |
+|---|---|---|
+| pary osiągnięte / sondy dostarczone | 16 / 36 z 48 | 13 / 29 z 48 |
+| łącza bezpośrednie: symulacja / sieć | 10 / 6 | 8 / 5 |
+| zgodność „bezpośrednio / przez pośrednika” | 10 / 16 (63%) | 10 / 13 (77%) |
+| ta sama liczba skoków | 7 / 16 | 7 / 13 |
+| średnia różnica skoków | −0,56 | −0,62 |
+| zgodny węzeł pośredniczący z klastra | 4 / 6 | 3 / 4 |
+
+Budynki zmniejszają nadmiar łączy bezpośrednich i poprawiają zgodność trybu przekazania,
+ale część par przestaje być osiągalna (głównie odległa bramka w Jarosławiu). Na 16 parach
+różnice są małe i nie rozstrzygają, czy model budynków zastępuje stratę otoczenia; budynki
+nie tłumaczą anten wewnątrz budynków ani roślinności, które strata otoczenia też obejmuje.
+
 ## Wyniki: wpływ precyzji pozycji
 
 Monte Carlo na 25 parach z klastrów: prawdziwa pozycja losowana w komórce siatki, węzeł
@@ -220,28 +267,31 @@ Stop 3,5–7,9 s.
 
 | | fizyczny | skalibrowany, seed 1 | skalibrowany, seed 2 |
 |---|---|---|---|
-| pary osiągnięte w symulacji | 51 | 51 | 44 |
-| łącza bezpośrednie: symulacja / rzeczywistość | 44 / 12 | 25 / 11 | 24 / 11 |
-| zgodność „bezpośrednio / przez pośrednika” | 19 / 51 (37%) | 33 / 51 (65%) | 27 / 44 (61%) |
-| ta sama liczba skoków (moda) | 14 / 51 (27%) | 17 / 51 (33%) | 16 / 44 (36%) |
-| średnia różnica skoków (symulacja − rzeczywistość) | −1,47 | −0,92 | −0,93 |
-| zgodny retransmitujący węzeł z klastra | brak przypadków | 6 / 6 | 3 / 6 |
+| pary osiągnięte w symulacji | 53 | 58 | 44 |
+| łącza bezpośrednie: symulacja / rzeczywistość | 44 / 12 | 26 / 13 | 24 / 11 |
+| zgodność „bezpośrednio / przez pośrednika” | 21 / 53 (40%) | 39 / 58 (67%) | 27 / 44 (61%) |
+| ta sama liczba skoków (moda) | 14 / 53 (26%) | 19 / 58 (33%) | 16 / 44 (36%) |
+| średnia różnica skoków (symulacja − rzeczywistość) | −1,45 | −0,88 | −0,93 |
+| zgodny retransmitujący węzeł z klastra | 1 / 1 | 8 / 8 | 3 / 6 |
 
 **Wnioski**
 
 - Model fizyczny przewiduje prawie 4× za dużo łączy bezpośrednich, więc trasy są krótsze
   o 1,5 skoku. Ponieważ niemal wszystko słyszy bramkę bezpośrednio, nie ma retransmisji do
   porównania.
-- Kalibracja podnosi zgodność „bezpośrednio / przez pośrednika” z 37% do 61–65% i zmniejsza
+- Kalibracja podnosi zgodność „bezpośrednio / przez pośrednika” z 40% do 61–67% i zmniejsza
   różnicę skoków do ok. 0,9. Gdy w sieci retransmituje węzeł z klastra, symulacja wskazuje
-  ten sam węzeł w 9 z 12 przypadków.
-- Wyniki zależą od losowania cieniowania (np. 51 vs 44 osiągnięte pary) — wnioski należy
+  ten sam węzeł w 11 z 14 przypadków.
+- Wyniki zależą od losowania cieniowania (np. 58 vs 44 osiągnięte pary) — wnioski należy
   uśredniać po kilku seedach.
-- Symulacja nadal ma średnio mniej skoków i nie osiąga ok. 30% par: w sieci wiele tras
+- Symulacja nadal ma średnio mniej skoków i nie osiąga od 19% do 39% par: w sieci wiele tras
   przechodzi przez węzły spoza klastra (bez precyzyjnej pozycji), których w symulacji nie ma.
 - Parametry kalibracji dobrano na tych samych parach, więc test routingu nie jest w pełni
   niezależny od kalibracji; niezależny jest tylko w tym sensie, że kalibracja dotyczyła
   łączy, a nie routingu firmware.
+
+Liczby w tabeli są po poprawce analizy: InfluxDB zwraca CSV w osobnych blokach dla różnych
+zestawów tagów, a pierwsza wersja parsera czytała wszystkie bloki według pierwszego nagłówka.
 
 Pierwszy przebieg routingu (sprzed poprawek) był niemiarodajny: niesaturowany SNR
 blokował kolejki nadawcze węzłów, a wstrzykiwanie odbiorów przez kontrolę przepływu
