@@ -20,6 +20,7 @@ class LinkDetails:
     path_loss_db: float
     terrain_loss_db: float
     building_loss_db: float
+    link_shadowing_db: float
     median_rssi_db: float
     distance_m: float
     blocked_buildings_count: int
@@ -37,6 +38,7 @@ class LinkMatrix:
     connectivity_neighbors: dict[str, list[str]]
     terrain_loss_db: np.ndarray | None = None
     building_loss_db: np.ndarray | None = None
+    link_shadowing_db: np.ndarray | None = None
     blocked_buildings_count: np.ndarray | None = None
     fresnel_clearance_m: np.ndarray | None = None
     dominant_building_id: np.ndarray | None = None
@@ -70,6 +72,7 @@ class LinkMatrix:
             path_loss_db=path_loss,
             terrain_loss_db=optional(self.terrain_loss_db, float, path_loss),
             building_loss_db=optional(self.building_loss_db, float, 0.0),
+            link_shadowing_db=optional(self.link_shadowing_db, float, 0.0),
             median_rssi_db=float(self.median_rssi_db[tx, rx]),
             distance_m=float(self.distance_m[tx, rx]),
             blocked_buildings_count=optional(self.blocked_buildings_count, int, 0),
@@ -97,7 +100,7 @@ def compute_scenario_fingerprint(nodes, environment) -> str:
         "custom_spreading_factor", "custom_coding_rate", "custom_tx_power_dbm",
         "custom_sensitivity_dbm", "itm_climate", "itm_polarization",
         "connectivity_threshold_dbm", "building_model_enabled", "fresnel_clearance_ratio",
-        "clutter_loss_db",
+        "clutter_loss_db", "link_shadowing_sigma_db", "link_shadowing_seed",
     )
     payload = {
         "nodes": [
@@ -107,7 +110,7 @@ def compute_scenario_fingerprint(nodes, environment) -> str:
         "environment": {
             field: getattr(environment, field) for field in environment_fields
         },
-        "model_version": 4,
+        "model_version": 5,
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -125,6 +128,7 @@ def save_link_matrix(scenario_id: str, matrix: LinkMatrix) -> Path:
         connectivity_neighbors=np.array(matrix.connectivity_neighbors, dtype=object),
         terrain_loss_db=matrix.terrain_loss_db,
         building_loss_db=matrix.building_loss_db,
+        link_shadowing_db=matrix.link_shadowing_db,
         blocked_buildings_count=matrix.blocked_buildings_count,
         fresnel_clearance_m=matrix.fresnel_clearance_m,
         dominant_building_id=matrix.dominant_building_id,
@@ -154,6 +158,7 @@ def load_link_matrix(scenario_id: str) -> Optional[LinkMatrix]:
         connectivity_neighbors=neighbors,
         terrain_loss_db=data["terrain_loss_db"] if "terrain_loss_db" in data else path_loss.copy(),
         building_loss_db=data["building_loss_db"] if "building_loss_db" in data else np.zeros(shape),
+        link_shadowing_db=data["link_shadowing_db"] if "link_shadowing_db" in data else np.zeros(shape),
         blocked_buildings_count=data["blocked_buildings_count"] if "blocked_buildings_count" in data else np.zeros(shape, dtype=int),
         fresnel_clearance_m=data["fresnel_clearance_m"] if "fresnel_clearance_m" in data else np.full(shape, np.inf),
         dominant_building_id=data["dominant_building_id"] if "dominant_building_id" in data else np.full(shape, "", dtype=object),

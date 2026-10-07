@@ -128,6 +128,7 @@ class InfluxWriter:
                     .tag("propagation_model", matrix.propagation_model)
                     .field("terrain_loss_db", link.terrain_loss_db)
                     .field("building_diffraction_db", link.building_loss_db)
+                    .field("link_shadowing_db", link.link_shadowing_db)
                     .field("total_path_loss_db", link.path_loss_db)
                     .field("median_rssi_db", link.median_rssi_db)
                     .field("distance_m", link.distance_m)

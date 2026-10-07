@@ -54,6 +54,7 @@ def get_links(scenario_id: str) -> dict:
         "path_loss_median_db": matrix.path_loss_median_db.tolist(),
         "terrain_loss_db": matrix.terrain_loss_db.tolist() if matrix.terrain_loss_db is not None else None,
         "building_loss_db": matrix.building_loss_db.tolist() if matrix.building_loss_db is not None else None,
+        "link_shadowing_db": matrix.link_shadowing_db.tolist() if matrix.link_shadowing_db is not None else None,
         "blocked_buildings_count": matrix.blocked_buildings_count.tolist() if matrix.blocked_buildings_count is not None else None,
         "fresnel_clearance_m": _finite_matrix(matrix.fresnel_clearance_m),
         "dominant_building_id": matrix.dominant_building_id.tolist() if matrix.dominant_building_id is not None else None,

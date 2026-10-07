@@ -115,6 +115,22 @@ def _pair_task(
     )
 
 
+def draw_link_shadowing(n: int, sigma_db: float, seed: int | None) -> np.ndarray:
+    """Trwałe cieniowanie [dB] każdej pary węzłów, symetryczne (wzajemność łącza).
+
+    Wartości są losowane w stałej kolejności par, więc ten sam seed daje to samo
+    cieniowanie niezależnie od kolejności liczenia ITM.
+    """
+    shadowing = np.zeros((n, n), dtype=np.float64)
+    if sigma_db <= 0:
+        return shadowing
+    rows, cols = np.triu_indices(n, k=1)
+    values = np.random.default_rng(seed).normal(0.0, sigma_db, size=rows.size)
+    shadowing[rows, cols] = values
+    shadowing[cols, rows] = values
+    return shadowing
+
+
 def _resolve_mounts(
     nodes: list[NodeConfig], index: Optional[BuildingIndex]
 ) -> list[Optional[NodeMount]]:
@@ -149,6 +165,7 @@ def precompute_link_matrix(
     path_loss = np.zeros((n, n), dtype=np.float64)
     terrain_loss = np.zeros((n, n), dtype=np.float64)
     building_loss = np.zeros((n, n), dtype=np.float64)
+    link_shadowing = draw_link_shadowing(n, env.link_shadowing_sigma_db, env.link_shadowing_seed)
     median_rssi = np.full((n, n), -999.0, dtype=np.float64)
     distance_m = np.zeros((n, n), dtype=np.float64)
     blocked_count = np.zeros((n, n), dtype=np.int32)
@@ -190,7 +207,7 @@ def precompute_link_matrix(
             for tx, rx, terrain in ((r.i, r.j, r.terrain_loss_ij_db), (r.j, r.i, r.terrain_loss_ji_db)):
                 terrain_loss[tx, rx] = terrain
                 building_loss[tx, rx] = b.loss_db
-                path_loss[tx, rx] = terrain + b.loss_db + env.clutter_loss_db
+                path_loss[tx, rx] = terrain + b.loss_db + env.clutter_loss_db + link_shadowing[tx, rx]
                 median_rssi[tx, rx] = compute_rssi_db(
                     lora.tx_power_dbm,
                     nodes[tx].antenna_gain_tx_db,
@@ -218,6 +235,7 @@ def precompute_link_matrix(
         ),
         terrain_loss_db=terrain_loss,
         building_loss_db=building_loss,
+        link_shadowing_db=link_shadowing,
         blocked_buildings_count=blocked_count,
         fresnel_clearance_m=fresnel_clearance,
         dominant_building_id=dominant_building,

@@ -86,6 +86,7 @@ export function LinksStep({ scenario, links, preset, dirty, onPrecompute, onNext
                       const title = [
                         `teren (ITM): ${links.terrain_loss_db?.[i]?.[j]?.toFixed(1) ?? "?"} dB`,
                         `budynki: ${buildings.toFixed(1)} dB (${links.blocked_buildings_count?.[i]?.[j] ?? 0} przeszkód)`,
+                        `cieniowanie: ${(links.link_shadowing_db?.[i]?.[j] ?? 0).toFixed(1)} dB`,
                         `odległość: ${(links.distance_m[i][j] / 1000).toFixed(2)} km`,
                       ].join("\n");
                       return (

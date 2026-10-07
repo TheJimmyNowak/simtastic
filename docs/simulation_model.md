@@ -24,9 +24,15 @@ Dla każdej uporządkowanej pary (TX, RX):
    strefy Fresnela. Dla budynków naruszających wymagany prześwit (domyślnie 60%)
    liczona jest strata knife-edge. Przy wielu przeszkodach wybierana jest dominująca
    strata — nie sumuje się niezależnych krawędzi.
-4. `path_loss_median_db = terrain_loss_db + building_loss_db + clutter_loss_db`, gdzie
-   `clutter_loss_db` to stała strata otoczenia ze scenariusza (zabudowa i roślinność spoza
-   SRTM, anteny w budynkach, kable). Wartości z kalibracji: `docs/validation_lorastats.md`.
+4. `path_loss_median_db = terrain_loss_db + building_loss_db + clutter_loss_db + link_shadowing_db`:
+   - `clutter_loss_db` — stała strata otoczenia ze scenariusza (zabudowa i roślinność spoza
+     SRTM, anteny w budynkach, kable);
+   - `link_shadowing_db ~ N(0, σ²)`, `σ = link_shadowing_sigma_db` — trwałe cieniowanie łącza,
+     losowane raz na parę węzłów (ta sama wartość w obu kierunkach) z seedem
+     `link_shadowing_seed`. Opisuje różnice między łączami, których ITM nie widzi; fading w
+     runtime opisuje zmienność kolejnych transmisji na tym samym łączu.
+
+   Wartości z kalibracji: `docs/validation_lorastats.md`.
 5. **Medianowy RSSI** (bez fadingu):  
    `RSSI = P_tx + G_tx + G_rx − PL` (domyślnie `P_tx` = 22 dBm, typowe SX1262) — ten sam wzór co w module `app.services.rf_link_model` (`compute_rssi_db`, `shadow_db = 0`).
 6. Graf sąsiedztwa: krawędź TX→RX jeśli `median_rssi_db[tx,rx] ≥ connectivity_threshold_dbm`.

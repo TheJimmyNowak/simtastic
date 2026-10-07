@@ -130,6 +130,19 @@ class EnvironmentConfig(BaseModel):
             "niewidoczne w SRTM, anteny w budynkach, kable. Kalibracja: docs/validation_lorastats.md."
         ),
     )
+    link_shadowing_sigma_db: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Odchylenie trwałego cieniowania łącza [dB]: losowane raz na parę węzłów przy "
+            "precompute (to samo w obu kierunkach), w odróżnieniu od fadingu losowanego "
+            "na każdą transmisję."
+        ),
+    )
+    link_shadowing_seed: int | None = Field(
+        default=None,
+        description="Seed trwałego cieniowania; brak = nowe losowanie przy każdym precompute.",
+    )
 
     @field_validator("preset")
     @classmethod

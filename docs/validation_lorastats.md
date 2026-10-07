@@ -131,13 +131,48 @@ Wpływ straty otoczenia (model po kalibracji, σ = 8 dB):
 | 30 | 0,61 | 0,80 | 0,71 | −19,9 / −24,9 | 0,208 |
 
 Kryteria wskazują różne wartości: RSSI istniejących łączy jest nieobciążony przy
-5–10 dB, a rozróżnianie „jest / nie ma łącza” jest najlepsze przy 20–25 dB. RSSI liczy się
-tylko na łączach, które działają (próba obciążona w stronę dobrych warunków), a rozrzut
-błędu RSSI między łączami wynosi ok. 26 dB — dużo więcej niż fading σ = 8 dB losowany
-osobno dla każdej transmisji. Jedna stała strata tego nie odda; brakuje trwałego
-cieniowania każdego łącza (losowanego raz na parę, np. σ ≈ 10–15 dB). Do czasu jego
-dodania: 10 dB, gdy liczy się poziom sygnału, 20 dB, gdy liczy się łączność i routing.
-Domyślnie `clutter_loss_db = 0` (czysty model fizyczny).
+5–10 dB, a rozróżnianie „jest / nie ma łącza” jest najlepsze przy 20–25 dB. Rozrzut błędu
+RSSI między łączami (ok. 26 dB) jest dużo większy niż fading σ = 8 dB losowany osobno dla
+każdej transmisji — brakuje trwałego cieniowania łącza.
+
+### Cieniowanie łączy
+
+Model: `P(łącze) = Φ((RSSI_med − clutter − czułość) / √(σ_link² + σ_fading²))`, σ_fading = 8 dB,
+dopasowany metodą największej wiarygodności do 87 par (łącze tak/nie).
+
+| σ_link [dB] | 0 | 5 | 10 | 15 | 20 | 25 |
+|---|---|---|---|---|---|---|
+| najlepsza strata otoczenia [dB] | 27 | 27 | 28 | 29 | 30 | 31 |
+| log-wiarygodność | −101,3 | −83,2 | −61,9 | −51,1 | −46,3 | −44,2 |
+
+Optimum leży na granicy siatki (strata 32 dB, σ_link 30 dB); bootstrap 90%: strata
+24–38 dB, σ_link 24–30 dB. Sprawdzenie spójności: dla każdej pary losowano cieniowanie
+i fading (2000 prób) i porównano z danymi odsetek istniejących łączy oraz średni błąd RSSI
+łączy, które istnieją (model widzi tylko łącza z korzystnym cieniowaniem — efekt selekcji):
+
+| strata | σ_link | błąd RSSI łączy: dane | błąd RSSI łączy: model | odsetek łączy: model (dane 0,36) |
+|---|---|---|---|---|
+| 10 | 10 | +0,1 | −4,9 | 0,58 |
+| 20 | 10 | −9,9 | −7,9 | 0,46 |
+| 20 | 15 | −9,9 | −10,2 | 0,46 |
+| 25 | 15 | −14,9 | −12,2 | 0,41 |
+| 25 | 20 | −14,9 | −15,0 | 0,41 |
+| 30 | 20 | −19,9 | −17,5 | 0,36 |
+| 32 | 30 | −21,9 | −25,5 | 0,36 |
+
+Z trwałym cieniowaniem oba kryteria się zgadzają: **strata otoczenia 25–30 dB, σ_link ≈ 20 dB**.
+Pozorna sprzeczność z poprzedniej tabeli wynika z selekcji — łącza, które działają, mają
+zwykle korzystne cieniowanie, więc ich RSSI jest wyższe od mediany modelu.
+
+σ_link ≈ 20 dB to więcej niż typowe cieniowanie propagacyjne (6–12 dB), bo obejmuje też
+różnice instalacji węzłów: nieznaną wysokość anteny (40 z 72 węzłów miało ją z raportu,
+reszta przyjęte 6 m), ręcznie wpisane pozycje, anteny w budynkach, moc TX i kable. Część tej
+zmienności jest cechą węzła, a nie łącza — model per węzeł (np. strata instalacji węzła)
+byłby dokładniejszy, ale dane z 72 węzłów na to nie wystarczają.
+
+Domyślnie `clutter_loss_db = 0` i `link_shadowing_sigma_db = 0` (czysty model fizyczny).
+Do badań łączności i routingu sieci podobnej do rzeczywistej: 25–30 dB i σ = 20 dB
+z ustalonym `link_shadowing_seed`.
 
 ## Wyniki: wpływ precyzji pozycji
 

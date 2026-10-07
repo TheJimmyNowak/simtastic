@@ -73,6 +73,8 @@ export function defaultDraft(name: string): ScenarioDraft {
       fresnel_clearance_ratio: 0.6,
       connectivity_threshold_dbm: -140,
       clutter_loss_db: 0,
+      link_shadowing_sigma_db: 0,
+      link_shadowing_seed: null,
     },
     nodes,
   };

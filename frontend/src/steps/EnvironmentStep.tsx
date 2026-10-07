@@ -90,6 +90,22 @@ export function EnvironmentStep({ draft, presets, disabled, onChange, onNext }: 
             hint="Doliczana do każdego łącza: zabudowa i roślinność spoza SRTM, anteny w budynkach."
             onChange={(v) => setEnv({ clutter_loss_db: v ?? 0 })}
           />
+          <NumberField
+            label="Cieniowanie łączy σ [dB]"
+            value={env.link_shadowing_sigma_db}
+            min={0}
+            step={1}
+            hint="Trwała różnica między łączami, losowana raz na parę węzłów przy obliczaniu łączy."
+            onChange={(v) => setEnv({ link_shadowing_sigma_db: v ?? 0 })}
+          />
+          <NumberField
+            label="Seed cieniowania"
+            value={env.link_shadowing_seed}
+            optional
+            step={1}
+            hint="Puste = nowe losowanie przy każdym obliczeniu łączy."
+            onChange={(v) => setEnv({ link_shadowing_seed: v })}
+          />
         </div>
         <label className="checkbox">
           <input
@@ -130,7 +146,7 @@ export function EnvironmentStep({ draft, presets, disabled, onChange, onNext }: 
           się z modelem radiowym.
         </p>
         <p>
-          Zmiana presetu, modelu budynków, prześwitu Fresnela, straty otoczenia lub progu sąsiedztwa wymaga ponownego obliczenia łączy.
+          Zmiana presetu, modelu budynków, prześwitu Fresnela, straty otoczenia, cieniowania łączy lub progu sąsiedztwa wymaga ponownego obliczenia łączy.
           Identyfikator eksperymentu, fading i seed można zmieniać bez przeliczania.
         </p>
       </aside>

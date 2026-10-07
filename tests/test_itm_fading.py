@@ -111,3 +111,28 @@ def test_clutter_loss_is_added_to_every_link(monkeypatch) -> None:
     assert cluttered.path_loss_median_db[0, 1] == pytest.approx(plain.path_loss_median_db[0, 1] + 20.0)
     assert cluttered.median_rssi_db[1, 0] == pytest.approx(plain.median_rssi_db[1, 0] - 20.0)
     assert cluttered.terrain_loss_db[0, 1] == pytest.approx(plain.terrain_loss_db[0, 1])
+
+
+def test_link_shadowing_is_symmetric_and_reproducible() -> None:
+    first = itm_precompute.draw_link_shadowing(40, 12.0, seed=7)
+    assert np.array_equal(first, first.T)
+    assert np.all(np.diag(first) == 0)
+    assert np.array_equal(first, itm_precompute.draw_link_shadowing(40, 12.0, seed=7))
+    assert not np.array_equal(first, itm_precompute.draw_link_shadowing(40, 12.0, seed=8))
+    pairs = first[np.triu_indices(40, k=1)]
+    assert pairs.std() == pytest.approx(12.0, rel=0.1)
+    assert not itm_precompute.draw_link_shadowing(5, 0.0, seed=None).any()
+
+
+def test_link_shadowing_enters_the_link_matrix(monkeypatch) -> None:
+    monkeypatch.setattr(itm_precompute, "save_link_matrix", lambda scenario_id, matrix: None)
+    nodes = [NodeConfig(id=f"n{i}", lat=52.20, lon=20.95 + 0.01 * i, agl_m=6.0) for i in range(3)]
+    base = EnvironmentConfig(building_model_enabled=False)
+    plain = itm_precompute.precompute_link_matrix("t", nodes, base)
+    shadowed = itm_precompute.precompute_link_matrix(
+        "t", nodes, base.model_copy(update={"link_shadowing_sigma_db": 10.0, "link_shadowing_seed": 3})
+    )
+    expected = itm_precompute.draw_link_shadowing(3, 10.0, seed=3)
+    assert np.allclose(shadowed.link_shadowing_db, expected)
+    assert np.allclose(shadowed.path_loss_median_db, plain.path_loss_median_db + expected)
+    assert shadowed.link(0, 2).link_shadowing_db == pytest.approx(expected[0, 2])

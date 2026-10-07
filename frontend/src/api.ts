@@ -34,6 +34,8 @@ export type Environment = {
   fresnel_clearance_ratio: number;
   connectivity_threshold_dbm: number;
   clutter_loss_db: number;
+  link_shadowing_sigma_db: number;
+  link_shadowing_seed: number | null;
   [other: string]: unknown;
 };
 
@@ -73,6 +75,7 @@ export type Links = {
   median_rssi_db: number[][];
   terrain_loss_db: number[][] | null;
   building_loss_db: number[][] | null;
+  link_shadowing_db: number[][] | null;
   blocked_buildings_count: number[][] | null;
   distance_m: number[][];
   node_placement: Record<string, NodePlacement>;
