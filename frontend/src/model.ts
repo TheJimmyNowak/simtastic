@@ -75,6 +75,8 @@ export function defaultDraft(name: string): ScenarioDraft {
       clutter_loss_db: 0,
       link_shadowing_sigma_db: 0,
       link_shadowing_seed: null,
+      collisions_enabled: true,
+      capture_threshold_db: 6,
     },
     nodes,
   };

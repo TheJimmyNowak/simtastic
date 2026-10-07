@@ -235,6 +235,7 @@ class SimulationManager:
             random_seed=env.random_seed,
         )
         gateway.set_lora(env.resolve_lora())
+        gateway.configure_medium(env.collisions_enabled, env.capture_threshold_db)
         with self._lock:
             self._gateway = gateway
         self._prepare_nodes(scenario, matrix, containers, gateway)

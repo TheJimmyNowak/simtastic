@@ -35,6 +35,8 @@ class LinkAttempt(BaseModel):
     rssi_db: float
     snr_db: float
     delivered: bool
+    # None = dostarczony; weak / collision / half_duplex = przyczyna utraty.
+    loss_reason: Optional[str] = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class PacketOtaRx(BaseModel):

@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import pytest
 from google.protobuf.json_format import MessageToDict
@@ -132,6 +134,34 @@ def test_snr_uses_preset_noise_floor_unless_node_overrides() -> None:
     assert gw._simulate_link("a", "b", 1).snr_db == pytest.approx(rssi - lora.noise_floor_dbm)
     gw.nodes[1] = gw.nodes[1].model_copy(update={"noise_floor_dbm": -100.0})
     assert gw._simulate_link("a", "b", 2).snr_db == pytest.approx(rssi + 100.0)
+
+
+def test_hidden_terminals_collide_at_the_middle_node() -> None:
+    """A i C się nie słyszą (brak CAD), nadają jednocześnie: B nie odbiera żadnego."""
+    packet_trace_service.clear()
+    gw, ifaces = line_gateway()
+    gw.configure_medium(collisions_enabled=True, capture_threshold_db=6.0)
+    gw._on_mesh_packet(sim_tx_packet(packet_id=21, origin_hw=HW_ID_OFFSET, hop_limit=3), ifaces["a"])
+    gw._on_mesh_packet(sim_tx_packet(packet_id=22, origin_hw=HW_ID_OFFSET + 2, hop_limit=3), ifaces["c"])
+    time.sleep(0.8)  # czas w eterze LONG_FAST + zapas na rozstrzygnięcie
+    gw.stop()
+    assert ifaces["b"].sent == []
+    reasons = {(a.tx_node, a.rx_node): a.loss_reason for a in packet_trace_service.list_recent_attempts(10)}
+    assert reasons[("a", "b")] == reasons[("c", "b")] == "collision"
+
+
+def test_cad_defers_transmission_of_node_hearing_the_channel() -> None:
+    """B słyszy A, więc nie nadaje w trakcie pakietu A — oba pakiety docierają."""
+    packet_trace_service.clear()
+    gw, ifaces = line_gateway()
+    gw.configure_medium(collisions_enabled=True, capture_threshold_db=6.0)
+    gw._on_mesh_packet(sim_tx_packet(packet_id=31, origin_hw=HW_ID_OFFSET, hop_limit=3), ifaces["a"])
+    gw._on_mesh_packet(sim_tx_packet(packet_id=32, origin_hw=HW_ID_OFFSET + 1, hop_limit=3), ifaces["b"])
+    time.sleep(1.5)
+    gw.stop()
+    assert [p.packet.id for p in ifaces["b"].sent] == [31]
+    assert [p.packet.id for p in ifaces["a"].sent] == [32]
+    assert [p.packet.id for p in ifaces["c"].sent] == [32]
 
 
 def test_disconnect_drops_unsent_client_queue() -> None:

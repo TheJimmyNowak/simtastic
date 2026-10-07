@@ -106,6 +106,15 @@ export function EnvironmentStep({ draft, presets, disabled, onChange, onNext }: 
             hint="Puste = nowe losowanie przy każdym obliczeniu łączy."
             onChange={(v) => setEnv({ link_shadowing_seed: v })}
           />
+          <NumberField
+            label="Próg przechwycenia [dB]"
+            value={env.capture_threshold_db}
+            min={0}
+            step={1}
+            disabled={!env.collisions_enabled}
+            hint="Przewaga mocy, przy której silniejszy z nakładających się pakietów przeżywa."
+            onChange={(v) => setEnv({ capture_threshold_db: v ?? 6 })}
+          />
         </div>
         <label className="checkbox">
           <input
@@ -114,6 +123,14 @@ export function EnvironmentStep({ draft, presets, disabled, onChange, onNext }: 
             onChange={(e) => setEnv({ building_model_enabled: e.target.checked })}
           />
           Uwzględnij budynki LoD1 (dyfrakcja wg ITU-R P.526)
+        </label>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={env.collisions_enabled}
+            onChange={(e) => setEnv({ collisions_enabled: e.target.checked })}
+          />
+          Kolizje w eterze (przechwycenie, półdupleks, CAD przed nadaniem)
         </label>
         <div className="form-actions">
           <button type="button" className="button" onClick={onNext}>

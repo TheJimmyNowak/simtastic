@@ -36,6 +36,8 @@ export type Environment = {
   clutter_loss_db: number;
   link_shadowing_sigma_db: number;
   link_shadowing_seed: number | null;
+  collisions_enabled: boolean;
+  capture_threshold_db: number;
   [other: string]: unknown;
 };
 
@@ -104,6 +106,7 @@ export type LinkAttempt = {
   shadow_db: number;
   building_diffraction_db: number;
   delivered: boolean;
+  loss_reason: "weak" | "collision" | "half_duplex" | null;
   timestamp: string;
 };
 

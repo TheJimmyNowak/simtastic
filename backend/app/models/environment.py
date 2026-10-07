@@ -143,6 +143,19 @@ class EnvironmentConfig(BaseModel):
         default=None,
         description="Seed trwałego cieniowania; brak = nowe losowanie przy każdym precompute.",
     )
+    collisions_enabled: bool = Field(
+        default=True,
+        description=(
+            "Kolizje w eterze: odbiór oceniany po zakończeniu pakietu (przechwycenie, "
+            "półdupleks) i emulacja CAD przed nadaniem. Wyłączone = każdy odbiór powyżej "
+            "czułości dociera natychmiast."
+        ),
+    )
+    capture_threshold_db: float = Field(
+        default=6.0,
+        ge=0.0,
+        description="Minimalna przewaga mocy nad nakładającym się pakietem, przy której pakiet przeżywa.",
+    )
 
     @field_validator("preset")
     @classmethod

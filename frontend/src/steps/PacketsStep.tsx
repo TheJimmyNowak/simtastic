@@ -3,6 +3,8 @@ import type { LinkAttempt, Packets, PacketTx, Scenario } from "../api";
 import { nodeLabel } from "../model";
 import { Callout } from "../ui";
 
+const LOSS_REASON = { weak: "za słaby", collision: "kolizja", half_duplex: "odbiorca nadawał" } as const;
+
 type Props = { scenario: Scenario; packets: Packets | null };
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString("pl-PL", { hour12: false });
@@ -135,7 +137,9 @@ export function PacketsStep({ scenario, packets }: Props) {
                   <td>{a.rssi_db.toFixed(1)}</td>
                   <td>{a.shadow_db >= 0 ? "+" : ""}{a.shadow_db.toFixed(1)}</td>
                   <td>{a.building_diffraction_db ? a.building_diffraction_db.toFixed(1) : "—"}</td>
-                  <td className={a.delivered ? "ok" : "fail"}>{a.delivered ? "odebrany" : "utracony"}</td>
+                  <td className={a.delivered ? "ok" : "fail"}>
+                    {a.delivered ? "odebrany" : `utracony${a.loss_reason ? ` (${LOSS_REASON[a.loss_reason]})` : ""}`}
+                  </td>
                 </tr>
               ))}
             </tbody>

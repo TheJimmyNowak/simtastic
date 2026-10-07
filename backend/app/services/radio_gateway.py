@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import heapq
+import itertools
 import logging
 import random
 import threading
-from typing import Any, Optional
+import time
+from typing import Any, Callable, Optional
 
 from meshtastic import mesh_pb2, portnums_pb2, protocols as meshtastic_protocols
 from meshtastic.tcp_interface import TCPInterface
@@ -15,6 +18,15 @@ from app.models.packet_trace import LinkAttempt, PacketOtaRx, PacketOtaTx
 from app.services.influx_writer import influx_writer
 from app.services.packet_trace import packet_trace_service
 from app.services.propagation.link_matrix import LinkMatrix
+from app.services.radio_medium import (
+    CW_MIN,
+    OUTCOME_OK,
+    PACKET_HEADER_BYTES,
+    RadioMedium,
+    Transmission,
+    lora_airtime_s,
+    slot_time_s,
+)
 from app.services.rf_link_model import (
     compute_rssi_db,
     compute_snr_db,
@@ -31,6 +43,50 @@ HW_ID_OFFSET = settings.hw_id_offset
 SIMULATOR_TOPIC = (
     f"meshtastic.receive.{meshtastic_protocols[portnums_pb2.PortNum.SIMULATOR_APP].name}"
 )
+# Zapas na transmisje zgłoszone przez inne węzły z opóźnieniem (TCP, wątek biblioteki):
+# odbiór jest rozstrzygany chwilę po końcu pakietu, gdy wszystkie nakładające się są znane.
+DECISION_GRACE_S = 0.05
+
+
+class _Scheduler:
+    """Jeden wątek wykonujący zadania o zadanym czasie (time.monotonic)."""
+
+    def __init__(self) -> None:
+        self._queue: list[tuple[float, int, Callable[[], None]]] = []
+        self._counter = itertools.count()
+        self._cv = threading.Condition()
+        self._thread: Optional[threading.Thread] = None
+        self._stopped = False
+
+    def start(self) -> None:
+        self._stopped = False
+        self._thread = threading.Thread(target=self._run, name="radio-medium", daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        with self._cv:
+            self._stopped = True
+            self._queue.clear()
+            self._cv.notify()
+
+    def call_at(self, when: float, fn: Callable[[], None]) -> None:
+        with self._cv:
+            heapq.heappush(self._queue, (when, next(self._counter), fn))
+            self._cv.notify()
+
+    def _run(self) -> None:
+        while True:
+            with self._cv:
+                while not self._stopped and (not self._queue or self._queue[0][0] > time.monotonic()):
+                    timeout = self._queue[0][0] - time.monotonic() if self._queue else None
+                    self._cv.wait(timeout)
+                if self._stopped:
+                    return
+                _, _, fn = heapq.heappop(self._queue)
+            try:
+                fn()
+            except Exception:
+                logger.exception("Radio medium task failed")
 
 
 class RadioGateway:
@@ -55,9 +111,23 @@ class RadioGateway:
         self._rng_lock = threading.Lock()
         self._running = False
         self._lora = None
+        self._medium: Optional[RadioMedium] = None
+        self._scheduler = _Scheduler()
 
     def set_lora(self, lora) -> None:
         self._lora = lora
+
+    def configure_medium(self, collisions_enabled: bool, capture_threshold_db: float) -> None:
+        """Włącza model kolizji (wymaga wcześniejszego set_lora)."""
+        if not collisions_enabled:
+            self._medium = None
+            return
+        self._medium = RadioMedium(
+            sensitivity_dbm=self._lora.sensitivity_dbm,
+            capture_threshold_db=capture_threshold_db,
+            spreading_factor=self._lora.spreading_factor,
+            bandwidth_khz=self._lora.bandwidth_khz,
+        )
 
     def attach_node(
         self,
@@ -209,15 +279,70 @@ class RadioGateway:
 
         if self._lora is None:
             return
+        attempts = [
+            self._simulate_link(tx_id, rx_id, packet_id)
+            for rx_id in self.link_matrix.connectivity_neighbors.get(tx_id, [])
+            if rx_id != tx_id
+        ]
+        if self._medium is None:
+            self._deliver(attempts, packet, packet_id)
+            return
+        transmission = self._put_on_air(tx_id, packet_id, packet, attempts)
+        self._scheduler.call_at(
+            transmission.end + DECISION_GRACE_S,
+            lambda: self._resolve_reception(transmission, attempts, packet, packet_id),
+        )
+
+    def _put_on_air(
+        self, tx_id: str, packet_id: int, packet: dict[str, Any], attempts: list[LinkAttempt]
+    ) -> Transmission:
+        """Rejestruje transmisję w medium; przy zajętym kanale emuluje CAD i odroczenie."""
+        lora = self._lora
+        payload = (packet.get("decoded") or {}).get("payload", b"")
+        airtime = lora_airtime_s(
+            len(payload) + PACKET_HEADER_BYTES,
+            lora.spreading_factor,
+            lora.bandwidth_khz,
+            lora.coding_rate,
+        )
+        slot = slot_time_s(lora.spreading_factor, lora.bandwidth_khz)
+        start = time.monotonic()
+        # SimRadio nie wykonuje CAD; prawdziwy węzeł odczekałby losowo i sprawdził ponownie.
+        while (busy_end := self._medium.busy_until(tx_id, start)) is not None:
+            with self._rng_lock:
+                start = busy_end + self._rng.randrange(2 ** CW_MIN) * slot
+        transmission = Transmission(
+            tx_id=tx_id,
+            packet_id=packet_id,
+            start=start,
+            end=start + airtime,
+            rssi_at={a.rx_node: a.rssi_db for a in attempts},
+        )
+        self._medium.add(transmission)
+        return transmission
+
+    def _resolve_reception(
+        self,
+        transmission: Transmission,
+        attempts: list[LinkAttempt],
+        packet: dict[str, Any],
+        packet_id: int,
+    ) -> None:
+        if not self._running:
+            return
+        for attempt in attempts:
+            outcome = self._medium.outcome(transmission, attempt.rx_node)
+            attempt.delivered = outcome == OUTCOME_OK
+            attempt.loss_reason = None if attempt.delivered else outcome
+        self._deliver(attempts, packet, packet_id)
+
+    def _deliver(self, attempts: list[LinkAttempt], packet: dict[str, Any], packet_id: int) -> None:
         receivers: list[tuple[NodeConfig, float, float]] = []
-        for rx_id in self.link_matrix.connectivity_neighbors.get(tx_id, []):
-            if rx_id == tx_id:
-                continue
-            attempt = self._simulate_link(tx_id, rx_id, packet_id)
+        for attempt in attempts:
             packet_trace_service.record_link_attempt(attempt)
             influx_writer.write_link_attempt(attempt)
             if attempt.delivered:
-                rx_node = self.nodes[self.link_matrix.index(rx_id)]
+                rx_node = self.nodes[self.link_matrix.index(attempt.rx_node)]
                 receivers.append((rx_node, attempt.rssi_db, attempt.snr_db))
         if receivers:
             self._forward_packet(receivers, packet, packet_id)
@@ -259,7 +384,8 @@ class RadioGateway:
             shadow_db=shadow,
             rssi_db=rssi,
             snr_db=snr,
-            delivered=is_packet_decoded_rssi(rssi, self._lora.sensitivity_dbm),
+            delivered=(decoded := is_packet_decoded_rssi(rssi, self._lora.sensitivity_dbm)),
+            loss_reason=None if decoded else "weak",
         )
 
     @staticmethod
@@ -344,6 +470,8 @@ class RadioGateway:
 
     def start(self) -> None:
         self._running = True
+        self._scheduler.start()
 
     def stop(self) -> None:
         self._running = False
+        self._scheduler.stop()

@@ -61,6 +61,34 @@ Macierz i sąsiedztwo są **zamrożone** na czas symulacji (brak zmian topologii
    z RSSI/SNR z modelu — firmware odbiorcy rozpakowuje go jak odbiór z układu LoRa. Inny `portnum`
    firmware potraktowałby jako wiadomość od własnego klienta i nadał jako swoją.
 
+### Kolizje (`collisions_enabled`, domyślnie włączone)
+
+Model za Borem i in. (MSWiM '16, LoRaSim), moduł `app.services.radio_medium`:
+
+1. **Czas w eterze** wg Semtech AN1200.13: preambuła 16 symboli (jak w firmware Meshtastic),
+   nagłówek jawny, CRC, LDRO dla symbolu > 16 ms; długość = dane + 16 B nagłówka pakietu.
+2. **Odbiór jest rozstrzygany po zakończeniu pakietu** (plus 50 ms zapasu na zgłoszenia innych
+   węzłów) i dopiero wtedy wstrzykiwany — tak jak prawdziwy odbiornik oddaje pakiet po odebraniu
+   całości. `SimRadio` (bez `USERPREFS_SIMRADIO_EMULATE_COLLISIONS`) przetwarza wstrzyknięty
+   pakiet natychmiast, więc opóźnienie się nie dubluje.
+3. Pakiet `p` u odbiorcy `r` jest tracony, gdy:
+   - `RSSI < czułość` — `weak`;
+   - `r` sam nadawał w czasie trwania `p` (półdupleks) — `half_duplex`;
+   - nakłada się z nim pakiet `q`, którego moc u `r` jest mniejsza od mocy `p` o mniej niż
+     `capture_threshold_db` (6 dB), chyba że `q` skończył się w pierwszych 16 − 5 = 11 symbolach
+     preambuły `p` — `collision`. Reguła jest parami (pakiet przeciw pakietowi), jak w LoRaSim;
+     zakłócenia z węzłów spoza sąsiedztwa `r` (poniżej `connectivity_threshold_dbm`) są pomijane.
+4. **CAD**: prawdziwe radio (SX126x) przed nadaniem po losowym opóźnieniu z okna rywalizacji
+   wykonuje CAD i przy zajętym kanale losuje opóźnienie ponownie. `SimRadio` tego nie robi
+   (kanał nigdy nie jest „zajęty”), więc gateway przesuwa start transmisji węzła, który słyszy
+   trwający sygnał (RSSI ≥ czułość), za jego koniec plus losowe `0…2^CWmin − 1` slotów
+   (CWmin = 3, slot = 2,5 symbolu + 7,6 ms, jak `RadioInterface::getTxDelayMsec`).
+5. Przyczyna utraty trafia do `link_attempt` (tag `loss_reason`) i do widoku pakietów.
+
+Weryfikacja na `meshtasticd` (ukryty węzeł: A i C się nie słyszą, u B różnica mocy 5,7 dB,
+8 rund jednoczesnych broadcastów): z kolizjami B traci oba pakiety w 6 z 8 rund (w 2 rundach
+losowe opóźnienie nadania w firmware rozsunęło je w czasie), bez kolizji odbiera wszystkie.
+
 Firmware każdego węzła jest konfigurowany zgodnie z modelem RF: region EU_868, preset modemu
 (lub jawne SF/BW/CR dla `custom`), `hop_limit`, rola i stała pozycja. Konfiguracja jest
 weryfikowana po restarcie węzła; rozbieżność przerywa start symulacji.
@@ -82,7 +110,9 @@ Dashboardy Grafana (folder Meshtastic) czytają te serie w Flux; routing w UI = 
 
 ## Czego model nie robi
 
-- Kolizje CSMA, backoff, capture effect, zajętość kanału w czasie.
+- Synchronizacja preambuły w szczegółach (tylko reguła 11 symboli), częściowa ortogonalność
+  różnych SF (wszystkie węzły mają ten sam preset), zmienność mocy zakłócenia w czasie pakietu;
+  CAD wykrywa sygnał przez cały czas jego trwania, nie tylko preambułę.
 - Zmiana topologii w czasie (ruch węzłów, pogoda).
 - Pełna zgodność z implementacją odbioru w chipie (tylko prosty próg RSSI).
 - Wielokrawędziowa procedura Deygout/ITU-R P.526; obecna wersja wybiera jedną

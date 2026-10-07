@@ -163,6 +163,8 @@ class InfluxWriter:
             .time(att.timestamp)
         )
         p = p.tag("propagation_model", att.propagation_model)
+        if att.loss_reason:
+            p = p.tag("loss_reason", att.loss_reason)
         if att.fresnel_clearance_m is not None:
             p = p.field("fresnel_clearance_m", att.fresnel_clearance_m)
         if att.dominant_building_id:
