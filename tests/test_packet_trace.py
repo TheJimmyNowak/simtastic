@@ -124,6 +124,16 @@ def test_injected_snr_is_saturated() -> None:
     assert ifaces["b"].sent[0].packet.rx_snr == pytest.approx(LORA_SNR_MAX_DB)
 
 
+def test_snr_uses_preset_noise_floor_unless_node_overrides() -> None:
+    gw, _ = line_gateway()
+    gw.link_matrix.path_loss_median_db[0, 1] = 130.0
+    lora = gw._lora
+    rssi = lora.tx_power_dbm + 2.0 + 2.0 - 130.0
+    assert gw._simulate_link("a", "b", 1).snr_db == pytest.approx(rssi - lora.noise_floor_dbm)
+    gw.nodes[1] = gw.nodes[1].model_copy(update={"noise_floor_dbm": -100.0})
+    assert gw._simulate_link("a", "b", 2).snr_db == pytest.approx(rssi + 100.0)
+
+
 def test_disconnect_drops_unsent_client_queue() -> None:
     """close() z zalegającą kolejką czeka bez końca na miejsce w kolejce TX firmware."""
     gw, ifaces = line_gateway()

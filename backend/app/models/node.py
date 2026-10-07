@@ -1,5 +1,6 @@
 import secrets
 from enum import Enum
+from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 class NodeRole(str, Enum):
@@ -22,7 +23,8 @@ class NodeConfig(BaseModel):
     antenna_gain_rx_db: float = 2.0
     hop_limit: int = Field(default=3, ge=0, le=7)
     role: NodeRole = NodeRole.CLIENT
-    noise_floor_dbm: float = -120.0
+    # None = szum wynikający z pasma presetu (LoraPreset.noise_floor_dbm).
+    noise_floor_dbm: Optional[float] = None
     mac_address: str = Field(default_factory=_default_mac)
 
     @field_validator("id")

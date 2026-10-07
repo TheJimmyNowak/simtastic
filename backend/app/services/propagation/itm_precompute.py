@@ -190,7 +190,7 @@ def precompute_link_matrix(
             for tx, rx, terrain in ((r.i, r.j, r.terrain_loss_ij_db), (r.j, r.i, r.terrain_loss_ji_db)):
                 terrain_loss[tx, rx] = terrain
                 building_loss[tx, rx] = b.loss_db
-                path_loss[tx, rx] = terrain + b.loss_db
+                path_loss[tx, rx] = terrain + b.loss_db + env.clutter_loss_db
                 median_rssi[tx, rx] = compute_rssi_db(
                     lora.tx_power_dbm,
                     nodes[tx].antenna_gain_tx_db,

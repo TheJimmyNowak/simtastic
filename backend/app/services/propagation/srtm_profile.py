@@ -8,6 +8,9 @@ from pathlib import Path
 from geopy.distance import geodesic
 
 _SAMPLES = 1201
+# Odstęp próbek SRTM3 (3″) w kierunku południkowym; gęściej nie ma sensu.
+_PROFILE_STEP_M = 90.0
+_MIN_PROFILE_SEGMENTS = 50
 
 
 def _tile_name(lat: float, lon: float) -> str:
@@ -54,12 +57,17 @@ def build_terrain_profile(
     lon1: float,
     lat2: float,
     lon2: float,
-    num_segments: int = 50,
+    num_segments: int | None = None,
 ) -> tuple[list[float], float]:
-    """Sample terrain AMSL (m) along a geodesic; return elevations and distance_m."""
-    if num_segments < 1:
-        num_segments = 1
+    """Sample terrain AMSL (m) along a geodesic; return elevations and distance_m.
+
+    By default the profile follows the SRTM3 resolution (a sample every ~90 m, at least
+    50 segments), so long paths do not skip terrain features between samples.
+    """
     dist_m = float(geodesic((lat1, lon1), (lat2, lon2)).meters)
+    if num_segments is None:
+        num_segments = max(_MIN_PROFILE_SEGMENTS, math.ceil(dist_m / _PROFILE_STEP_M))
+    num_segments = max(1, num_segments)
     profile: list[float] = []
     for i in range(num_segments + 1):
         f = i / num_segments

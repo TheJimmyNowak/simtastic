@@ -97,6 +97,7 @@ def compute_scenario_fingerprint(nodes, environment) -> str:
         "custom_spreading_factor", "custom_coding_rate", "custom_tx_power_dbm",
         "custom_sensitivity_dbm", "itm_climate", "itm_polarization",
         "connectivity_threshold_dbm", "building_model_enabled", "fresnel_clearance_ratio",
+        "clutter_loss_db",
     )
     payload = {
         "nodes": [
@@ -106,7 +107,7 @@ def compute_scenario_fingerprint(nodes, environment) -> str:
         "environment": {
             field: getattr(environment, field) for field in environment_fields
         },
-        "model_version": 3,
+        "model_version": 4,
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()

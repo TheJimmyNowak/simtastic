@@ -49,7 +49,7 @@ export function newNode(existing: NodeConfig[], near?: { lat: number; lon: numbe
     antenna_gain_rx_db: 2,
     hop_limit: 3,
     role: "CLIENT",
-    noise_floor_dbm: -120,
+    noise_floor_dbm: null,
   };
 }
 
@@ -72,6 +72,7 @@ export function defaultDraft(name: string): ScenarioDraft {
       building_model_enabled: true,
       fresnel_clearance_ratio: 0.6,
       connectivity_threshold_dbm: -140,
+      clutter_loss_db: 0,
     },
     nodes,
   };

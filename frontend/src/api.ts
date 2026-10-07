@@ -21,7 +21,8 @@ export type NodeConfig = {
   antenna_gain_rx_db: number;
   hop_limit: number;
   role: Role;
-  noise_floor_dbm: number;
+  /** null = szum wynikający z pasma presetu. */
+  noise_floor_dbm: number | null;
 };
 
 export type Environment = {
@@ -32,6 +33,7 @@ export type Environment = {
   building_model_enabled: boolean;
   fresnel_clearance_ratio: number;
   connectivity_threshold_dbm: number;
+  clutter_loss_db: number;
   [other: string]: unknown;
 };
 
@@ -57,6 +59,7 @@ export type LoraPreset = {
   coding_rate: number;
   tx_power_dbm: number;
   sensitivity_dbm: number;
+  noise_floor_dbm: number;
 };
 
 export type NodePlacement = {

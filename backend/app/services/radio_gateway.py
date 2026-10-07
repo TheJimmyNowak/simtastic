@@ -236,7 +236,12 @@ class RadioGateway:
             link.path_loss_db,
             shadow,
         )
-        snr = compute_snr_db(rssi, rx_node.noise_floor_dbm)
+        noise_floor = (
+            rx_node.noise_floor_dbm
+            if rx_node.noise_floor_dbm is not None
+            else self._lora.noise_floor_dbm
+        )
+        snr = compute_snr_db(rssi, noise_floor)
         return LinkAttempt(
             scenario_id=self.scenario_id,
             experiment_id=self.experiment_id,

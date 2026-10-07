@@ -17,15 +17,18 @@ budynku jest automatycznie klasyfikowany jako montaż dachowy, więc wysokość 
 
 Dla każdej uporządkowanej pary (TX, RX):
 
-1. Budowany jest profil terenu i dystans 3D.
+1. Budowany jest profil terenu (próbka co ok. 90 m, zgodnie z rozdzielczością SRTM3, co
+   najmniej 50 odcinków) i dystans. Dystans poniżej 1 m jest traktowany jak 1 m.
 2. Liczona jest strata terenu `terrain_loss_db` (ITM).
 3. Jeśli włączono model budynków, wyszukiwane są bryły LoD1 w korytarzu pierwszej
    strefy Fresnela. Dla budynków naruszających wymagany prześwit (domyślnie 60%)
    liczona jest strata knife-edge. Przy wielu przeszkodach wybierana jest dominująca
    strata — nie sumuje się niezależnych krawędzi.
-4. `path_loss_median_db = terrain_loss_db + building_loss_db`.
+4. `path_loss_median_db = terrain_loss_db + building_loss_db + clutter_loss_db`, gdzie
+   `clutter_loss_db` to stała strata otoczenia ze scenariusza (zabudowa i roślinność spoza
+   SRTM, anteny w budynkach, kable). Wartości z kalibracji: `docs/validation_lorastats.md`.
 5. **Medianowy RSSI** (bez fadingu):  
-   `RSSI = P_tx + G_tx + G_rx − PL` — ten sam wzór co w module `app.services.rf_link_model` (`compute_rssi_db`, `shadow_db = 0`).
+   `RSSI = P_tx + G_tx + G_rx − PL` (domyślnie `P_tx` = 22 dBm, typowe SX1262) — ten sam wzór co w module `app.services.rf_link_model` (`compute_rssi_db`, `shadow_db = 0`).
 6. Graf sąsiedztwa: krawędź TX→RX jeśli `median_rssi_db[tx,rx] ≥ connectivity_threshold_dbm`.
 
 Wysokości bezwzględne CityGML są w PL-EVRF2007-NH, a SRTM w EGM96. Aby ich nie
@@ -42,8 +45,10 @@ Macierz i sąsiedztwo są **zamrożone** na czas symulacji (brak zmian topologii
    retransmisji wskazuje pierwotnego autora). Zwykłe odbiory nie są transmisjami.
 2. Dla każdego sąsiada z precompute:  
    `RSSI = P_tx + G_tx + G_rx − PL_median + X`, gdzie `X ~ N(0, σ²)` i `σ = fading_sigma_db`.
-3. **SNR** jest liczony jako `min(RSSI − noise_floor_rx, 12 dB)` — nasycenie jak w odbiorniku
-   LoRa. Firmware wylicza z SNR opóźnienie retransmisji, więc nienasycona wartość (np. 70 dB
+3. **SNR** jest liczony jako `min(RSSI − N, 12 dB)`, gdzie szum odbiornika
+   `N = −174 + 10·log10(BW) + NF` (NF = 6 dB; −114 dBm dla 250 kHz) — ten sam, z którego wynika
+   czułość `N + SNR_min(SF)`; węzeł może go nadpisać polem `noise_floor_dbm`. Nasycenie na 12 dB
+   odpowiada odbiornikowi LoRa. Firmware wylicza z SNR opóźnienie retransmisji, więc nienasycona wartość (np. 70 dB
    dla bliskich węzłów) blokowała kolejkę nadawczą na dziesiątki minut.
 4. **Dekodowanie** (uproszczenie): `RSSI ≥ sensitivity` (LoRa z presetu) — jawny wybór RSSI zamiast SNR przy progu; uzasadnienie: spójność z jednym progiem odbioru w symulatorze.
 5. Dla odbiorców z `delivered == true` pakiet jest wstrzykiwany przez `ToRadio` jako `SIMULATOR_APP`

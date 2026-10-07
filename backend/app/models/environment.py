@@ -12,20 +12,27 @@ class LoraPreset(BaseModel):
     coding_rate: int
     tx_power_dbm: float
     sensitivity_dbm: float
+    noise_floor_dbm: float
 
 # Region EU_868 (Polska): jedyny kanał 250 kHz w paśmie 869.4–869.65 MHz, limit 27 dBm.
 EU_868_FREQUENCY_MHZ = 869.525
+# Typowe węzły (SX1262) nadają z mocą maksymalną układu, 22 dBm — firmware Meshtastic
+# przy tx_power = 0 używa maksimum układu, a nie limitu regionu.
+LORA_TX_POWER_DBM = 22.0
 LORA_NOISE_FIGURE_DB = 6.0
 # Minimalny SNR demodulacji LoRa wg Semtech (SX126x) dla SF7…SF12.
 _LORA_MIN_SNR_DB = {7: -7.5, 8: -10.0, 9: -12.5, 10: -15.0, 11: -17.5, 12: -20.0}
 
 
+def lora_noise_floor_dbm(bandwidth_khz: float) -> float:
+    """Szum odbiornika = -174 dBm/Hz + 10·log10(BW) + NF."""
+    return round(-174.0 + 10.0 * math.log10(bandwidth_khz * 1000.0) + LORA_NOISE_FIGURE_DB, 1)
+
+
 def lora_sensitivity_dbm(spreading_factor: int, bandwidth_khz: float) -> float:
-    """Czułość = -174 dBm/Hz + 10·log10(BW) + NF + SNR_min(SF)."""
+    """Czułość = szum odbiornika + SNR_min(SF)."""
     snr_min = _LORA_MIN_SNR_DB.get(spreading_factor, -2.5 * (spreading_factor - 4))
-    return round(
-        -174.0 + 10.0 * math.log10(bandwidth_khz * 1000.0) + LORA_NOISE_FIGURE_DB + snr_min, 1
-    )
+    return round(lora_noise_floor_dbm(bandwidth_khz) + snr_min, 1)
 
 
 def _preset(name: str, bandwidth_khz: float, spreading_factor: int, coding_rate: int = 5) -> LoraPreset:
@@ -35,8 +42,9 @@ def _preset(name: str, bandwidth_khz: float, spreading_factor: int, coding_rate:
         bandwidth_khz=bandwidth_khz,
         spreading_factor=spreading_factor,
         coding_rate=coding_rate,
-        tx_power_dbm=27,
+        tx_power_dbm=LORA_TX_POWER_DBM,
         sensitivity_dbm=lora_sensitivity_dbm(spreading_factor, bandwidth_khz),
+        noise_floor_dbm=lora_noise_floor_dbm(bandwidth_khz),
     )
 
 
@@ -114,6 +122,14 @@ class EnvironmentConfig(BaseModel):
         le=1.0,
         description="Wymagana wolna część promienia pierwszej strefy Fresnela.",
     )
+    clutter_loss_db: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Dodatkowa strata otoczenia [dB] doliczana do każdego łącza: zabudowa i roślinność "
+            "niewidoczne w SRTM, anteny w budynkach, kable. Kalibracja: docs/validation_lorastats.md."
+        ),
+    )
 
     @field_validator("preset")
     @classmethod
@@ -147,4 +163,5 @@ class EnvironmentConfig(BaseModel):
                 if self.custom_sensitivity_dbm is not None
                 else lora_sensitivity_dbm(sf, bandwidth)
             ),
+            noise_floor_dbm=lora_noise_floor_dbm(bandwidth),
         )

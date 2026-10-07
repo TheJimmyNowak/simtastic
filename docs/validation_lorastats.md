@@ -105,6 +105,40 @@ pojedyncza poprawka.
   SNR LoRa nasyca się ok. +12 dB, więc porównanie SNR ma sens tylko dla słabych łączy.
 - Profil terenu ma stałe 50 segmentów — dla tras 40 km to próbkowanie co 800 m.
 
+## Po kalibracji modelu
+
+Zmiany w modelu po pierwszym porównaniu: moc TX 22 dBm (zamiast 27), szum odbiornika
+z pasma (−114 dBm dla 250 kHz zamiast stałych −120 dBm), profil terenu co ok. 90 m
+(zamiast 50 odcinków) oraz jawny parametr `clutter_loss_db`. Te same 87 par:
+
+| | przed | po, strata otoczenia 0 dB |
+|---|---|---|
+| AUC | 0,798 | 0,808 |
+| RSSI sym. − rzecz. (n = 15), średnio / mediana | +13,8 / +10,3 dB | +10,1 / +5,1 dB |
+| RMSE RSSI | 29,6 dB | 26,4 dB |
+| SNR sym. − rzecz. (n = 31), średnio / RMSE | +33,7 / 41,2 dB | +6,4 / 12,2 dB |
+
+Wpływ straty otoczenia (model po kalibracji, σ = 8 dB):
+
+| `clutter_loss_db` | TPR | TNR | bal. acc. | bias RSSI (średnio / mediana) | Brier PDR |
+|---|---|---|---|---|---|
+| 0 | 0,94 | 0,45 | 0,69 | +10,1 / +5,1 | 0,481 |
+| 5 | 0,87 | 0,52 | 0,69 | +5,1 / +0,1 | 0,440 |
+| 10 | 0,87 | 0,54 | 0,70 | +0,1 / −4,9 | 0,391 |
+| 15 | 0,77 | 0,59 | 0,68 | −4,9 / −9,9 | 0,333 |
+| 20 | 0,71 | 0,73 | 0,72 | −9,9 / −14,9 | 0,277 |
+| 25 | 0,65 | 0,80 | 0,72 | −14,9 / −19,9 | 0,238 |
+| 30 | 0,61 | 0,80 | 0,71 | −19,9 / −24,9 | 0,208 |
+
+Kryteria wskazują różne wartości: RSSI istniejących łączy jest nieobciążony przy
+5–10 dB, a rozróżnianie „jest / nie ma łącza” jest najlepsze przy 20–25 dB. RSSI liczy się
+tylko na łączach, które działają (próba obciążona w stronę dobrych warunków), a rozrzut
+błędu RSSI między łączami wynosi ok. 26 dB — dużo więcej niż fading σ = 8 dB losowany
+osobno dla każdej transmisji. Jedna stała strata tego nie odda; brakuje trwałego
+cieniowania każdego łącza (losowanego raz na parę, np. σ ≈ 10–15 dB). Do czasu jego
+dodania: 10 dB, gdy liczy się poziom sygnału, 20 dB, gdy liczy się łączność i routing.
+Domyślnie `clutter_loss_db = 0` (czysty model fizyczny).
+
 ## Wyniki: wpływ precyzji pozycji
 
 Monte Carlo na 25 parach z klastrów: prawdziwa pozycja losowana w komórce siatki, węzeł

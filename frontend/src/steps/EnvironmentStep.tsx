@@ -82,6 +82,14 @@ export function EnvironmentStep({ draft, presets, disabled, onChange, onNext }: 
             hint="Część 1. strefy Fresnela, która musi być wolna."
             onChange={(v) => setEnv({ fresnel_clearance_ratio: v ?? 0.6 })}
           />
+          <NumberField
+            label="Strata otoczenia [dB]"
+            value={env.clutter_loss_db}
+            min={0}
+            step={1}
+            hint="Doliczana do każdego łącza: zabudowa i roślinność spoza SRTM, anteny w budynkach."
+            onChange={(v) => setEnv({ clutter_loss_db: v ?? 0 })}
+          />
         </div>
         <label className="checkbox">
           <input
@@ -111,6 +119,8 @@ export function EnvironmentStep({ draft, presets, disabled, onChange, onNext }: 
             <dd>{preset.tx_power_dbm} dBm</dd>
             <dt>Czułość odbiornika</dt>
             <dd>{preset.sensitivity_dbm} dBm</dd>
+            <dt>Szum odbiornika</dt>
+            <dd>{preset.noise_floor_dbm} dBm</dd>
           </dl>
         ) : (
           <p>Brak opisu presetu.</p>
@@ -120,7 +130,7 @@ export function EnvironmentStep({ draft, presets, disabled, onChange, onNext }: 
           się z modelem radiowym.
         </p>
         <p>
-          Zmiana presetu, modelu budynków, prześwitu Fresnela lub progu sąsiedztwa wymaga ponownego obliczenia łączy.
+          Zmiana presetu, modelu budynków, prześwitu Fresnela, straty otoczenia lub progu sąsiedztwa wymaga ponownego obliczenia łączy.
           Identyfikator eksperymentu, fading i seed można zmieniać bez przeliczania.
         </p>
       </aside>
