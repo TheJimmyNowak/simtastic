@@ -1,0 +1,30 @@
+{
+  // LaTeX Workshop: kompilacja przez latexmk z ustawieniami z latex/latexmkrc
+  "latex-workshop.latex.recipes": [
+    { "name": "latexmk (latexmkrc)", "tools": ["latexmk-rc"] }
+  ],
+  "latex-workshop.latex.tools": [
+    { "name": "latexmk-rc", "command": "latexmk", "args": ["%DOC%"], "env": {} }
+  ],
+  "latex-workshop.latex.recipe.default": "first",
+  "latex-workshop.latex.outDir": "%DIR%/build",
+  "latex-workshop.latex.autoBuild.run": "onSave",
+  "latex-workshop.latex.autoClean.run": "never",
+  "latex-workshop.view.pdf.viewer": "tab",
+  "latex-workshop.synctex.afterBuild.enabled": true,
+  "latex-workshop.linting.chktex.enabled": true,
+  "latex-workshop.message.warning.show": false,
+
+  // LTeX+: sprawdzanie pisowni i gramatyki (LanguageTool)
+  "ltex.language": "pl-PL",
+  "ltex.additionalRules.motherTongue": "pl-PL",
+  "ltex.enabled": ["latex", "bibtex"],
+
+  "[latex]": {
+    "editor.wordWrap": "on",
+    "editor.formatOnSave": false
+  },
+  "files.exclude": {
+    "latex/build": true
+  }
+}
