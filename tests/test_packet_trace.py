@@ -8,6 +8,7 @@ from app.models.node import NodeConfig
 from app.services.packet_trace import packet_trace_service
 from app.services.propagation.link_matrix import LinkMatrix
 from app.services.radio_gateway import HW_ID_OFFSET, SIMULATOR_TOPIC, RadioGateway
+from app.services.rf_link_model import LORA_SNR_MAX_DB
 
 
 def test_portnum_int_from_packet_dict() -> None:
@@ -20,12 +21,19 @@ def test_portnum_int_from_packet_dict() -> None:
 class FakeIface:
     def __init__(self) -> None:
         self.sent: list[mesh_pb2.ToRadio] = []
+        self.queue: dict = {}
 
     def _sendToRadio(self, to_radio: mesh_pb2.ToRadio) -> None:
+        # W bibliotece meshtastic czeka bez limitu na miejsce w kolejce TX firmware.
+        raise AssertionError("injection must not use the flow-controlled send")
+
+    def _sendToRadioImpl(self, to_radio: mesh_pb2.ToRadio) -> None:
         self.sent.append(to_radio)
 
     def close(self) -> None:
-        pass
+        # Prawdziwy close() wysyła pozostałości kolejki i może czekać bez końca.
+        if self.queue:
+            raise AssertionError("close() called with packets still queued")
 
 
 def sim_tx_packet(
@@ -107,6 +115,21 @@ def test_unknown_interface_and_stopped_gateway_are_ignored() -> None:
     gw.stop()
     gw._on_mesh_packet(sim_tx_packet(packet_id=2, origin_hw=HW_ID_OFFSET, hop_limit=3), ifaces["a"])
     assert packet_trace_service.list_recent_tx(10) == []
+
+
+def test_injected_snr_is_saturated() -> None:
+    """Nienasycony SNR (tu 300 dB budżetu) wydłużał opóźnienie retransmisji w firmware."""
+    gw, ifaces = line_gateway()
+    gw._on_mesh_packet(sim_tx_packet(packet_id=7, origin_hw=HW_ID_OFFSET, hop_limit=3), ifaces["a"])
+    assert ifaces["b"].sent[0].packet.rx_snr == pytest.approx(LORA_SNR_MAX_DB)
+
+
+def test_disconnect_drops_unsent_client_queue() -> None:
+    """close() z zalegającą kolejką czeka bez końca na miejsce w kolejce TX firmware."""
+    gw, ifaces = line_gateway()
+    ifaces["a"].queue[1] = mesh_pb2.ToRadio()
+    gw.disconnect()
+    assert ifaces["a"].queue == {}
 
 
 def test_gateway_listens_only_to_simulator_topic() -> None:

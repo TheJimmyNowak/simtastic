@@ -6,6 +6,7 @@ import pytest
 from app.services.propagation.link_matrix import build_connectivity_map
 from app.services.rf_link_model import (
     compute_rssi_db,
+    LORA_SNR_MAX_DB,
     compute_snr_db,
     is_packet_decoded_rssi,
 )
@@ -28,7 +29,14 @@ def test_delivered_uses_rssi_threshold() -> None:
 
 
 def test_snr() -> None:
-    assert compute_snr_db(-100.0, -120.0) == pytest.approx(20.0)
+    assert compute_snr_db(-110.0, -120.0) == pytest.approx(10.0)
+    assert compute_snr_db(-125.0, -120.0) == pytest.approx(-5.0)
+
+
+def test_snr_saturates_like_lora_receiver() -> None:
+    # Bliskie węzły: RSSI -49 dBm dałoby SNR 71 dB, a firmware wylicza z niego
+    # opóźnienie retransmisji — nienasycona wartość blokowała kolejkę nadawczą.
+    assert compute_snr_db(-49.0, -120.0) == pytest.approx(LORA_SNR_MAX_DB)
 
 
 def test_connectivity_neighbors_respect_threshold() -> None:

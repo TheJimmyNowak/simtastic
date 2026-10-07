@@ -110,6 +110,9 @@ class RadioGateway:
             pass
         for iface in self._ifaces.values():
             try:
+                # close() wysyła też pakiety czekające w kolejce klienta i czeka na wolne
+                # miejsce w kolejce TX firmware — przy zatkanym węźle bez końca.
+                iface.queue.clear()
                 iface.close()
             except Exception:
                 pass
@@ -315,7 +318,12 @@ class RadioGateway:
             if iface is None:
                 continue
             try:
-                iface._sendToRadio(to_radio)
+                # Zapis bezpośrednio do strumienia, z pominięciem kontroli przepływu klienta:
+                # _sendToRadio czeka (bez limitu) na wolne miejsce w kolejce TX firmware,
+                # a odbiory wszystkich węzłów są wstrzykiwane z jednego wątku biblioteki,
+                # więc jeden zatkany węzeł zatrzymywałby całą symulację. To odbiór
+                # radiowy, a nie wysyłka klienta, więc kolejka TX go nie dotyczy.
+                iface._sendToRadioImpl(to_radio)
             except Exception as exc:
                 logger.warning("Forward to %s failed: %s", rx.id, exc)
                 continue

@@ -42,7 +42,9 @@ Macierz i sąsiedztwo są **zamrożone** na czas symulacji (brak zmian topologii
    retransmisji wskazuje pierwotnego autora). Zwykłe odbiory nie są transmisjami.
 2. Dla każdego sąsiada z precompute:  
    `RSSI = P_tx + G_tx + G_rx − PL_median + X`, gdzie `X ~ N(0, σ²)` i `σ = fading_sigma_db`.
-3. **SNR** jest liczony jako `RSSI − noise_floor_rx` (informacyjnie w trace / Influx).
+3. **SNR** jest liczony jako `min(RSSI − noise_floor_rx, 12 dB)` — nasycenie jak w odbiorniku
+   LoRa. Firmware wylicza z SNR opóźnienie retransmisji, więc nienasycona wartość (np. 70 dB
+   dla bliskich węzłów) blokowała kolejkę nadawczą na dziesiątki minut.
 4. **Dekodowanie** (uproszczenie): `RSSI ≥ sensitivity` (LoRa z presetu) — jawny wybór RSSI zamiast SNR przy progu; uzasadnienie: spójność z jednym progiem odbioru w symulatorze.
 5. Dla odbiorców z `delivered == true` pakiet jest wstrzykiwany przez `ToRadio` jako `SIMULATOR_APP`
    z RSSI/SNR z modelu — firmware odbiorcy rozpakowuje go jak odbiór z układu LoRa. Inny `portnum`
