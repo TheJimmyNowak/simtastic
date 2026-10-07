@@ -490,9 +490,12 @@ Ponadto sam protokół dynamicznie się zmienia co powoduje, że w realnych zast
 \section{Symulacja węzła z użyciem MeshtasticD}
 MeshtasticD jest natywnym programem binarnym służącym do uruchamiania Meshtastic na urządzeniach wyposażonych w radiomodemy komunikujące się za pośrednictwem interfejsu SPI lub USB. Jest dostępny dla systemów macOS oraz Linux. Dzięki wykorzystaniu modułu simradio można uruchomić program bez potrzeby posiadania fizycznego radiomodułu, dzięki czemu symulację działania pojedynczego węzła można uruchomić w izolowanym środowisku np. z użyciem kontenera Docker.
 
-\chapter{Implementacja symulatora} 
+\cleardoublepage
+\input{rozdzialy/implementacja}
 
-    
+\cleardoublepage
+\input{rozdzialy/weryfikacja}
+
     \cleardoublepage
     
 
@@ -506,6 +509,9 @@ MeshtasticD jest natywnym programem binarnym służącym do uruchamiania Meshtas
     \bibitem{meshtastic_device} Meshtastic, \emph{Device Configuration}. Dostępne online: \url{https://meshtastic.org/docs/configuration/radio/device/} [dostęp: 03.09.2026].
     \bibitem{bor2016} M. Bor, U. Roedig, T. Voigt, J. M. Alonso, „Do LoRa Low-Power Wide-Area Networks Scale?”, w: \emph{Proceedings of the 19th ACM International Conference on Modeling, Analysis and Simulation of Wireless and Mobile Systems (MSWiM '16)}, ACM, 2016, doi: 10.1145/2988287.2989163.
     \bibitem{semtech_an1200_13} Semtech Corporation, \emph{LoRa Modem Designer's Guide}, nota aplikacyjna AN1200.13, wersja 1, lipiec 2013.
+    \bibitem{farr2007} T. G. Farr i in., „The Shuttle Radar Topography Mission”, \emph{Reviews of Geophysics}, vol. 45, nr 2, RG2004, 2007, doi: 10.1029/2005RG000183.
+    \bibitem{lorastats} lorastats.pl, \emph{Statystyki polskiej sieci Meshtastic}, API danych z ostatnich 24 godzin. Dostępne online: \url{https://lorastats.pl/API} [dostęp: 07.10.2026].
+    \bibitem{meshtastic_protobufs} Meshtastic, \emph{Protobufs}, plik \texttt{meshtastic/mesh.proto}, pole \texttt{Position.precision\_bits}. Dostępne online: \url{https://github.com/meshtastic/protobufs} [dostęp: 07.10.2026].
     \bibitem{meshtastic_firmware} Meshtastic, \emph{Meshtastic Firmware}, wersja 2.7.15, pliki \texttt{src/platform/portduino/SimRadio.cpp}, \texttt{src/mesh/RadioInterface.cpp}, \texttt{src/mesh/SX126xInterface.cpp}. Dostępne online: \url{https://github.com/meshtastic/firmware} [dostęp: 07.10.2026].
 	\end{thebibliography}
     \cleardoublepage

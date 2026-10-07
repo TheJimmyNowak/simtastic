@@ -1,0 +1,101 @@
+\chapter{Weryfikacja symulatora na danych z działającej sieci}
+\label{chap:weryfikacja}
+
+Symulator może działać bez zarzutu i nadal kłamać. Najprostszy sposób, żeby to wyłapać, to porównać go z prawdziwą siecią. W Polsce jest to możliwe dzięki serwisowi lorastats.pl \cite{lorastats}. Zbiera on pakiety polskiej sieci Meshtastic odebrane przez bramki MQTT, czyli węzły, które poza radiem mają też dostęp do internetu i przesyłają dalej wszystko, co usłyszą. Udostępnia je przez API z ostatnich 24 godzin.
+
+\section{Dane}
+
+Z API pobrane zostały cztery zbiory dla wszystkich regionów serwisu: listy węzłów, zdekodowane pakiety, surowe pakiety oraz raporty odbioru. Raport odbioru mówi, która bramka usłyszała który pakiet, z jaką mocą i SNR, ile skoków zostało pakietowi i który węzeł nadał go ostatni. Łącznie to około 1,07 miliona raportów od 360 bramek z 6 i 7 października 2026 roku.
+
+Najwięcej kłopotu sprawiły pozycje węzłów. Meshtastic pozwala ograniczyć dokładność rozgłaszanej pozycji \cite{meshtastic_protobufs}. Węzeł ustawia liczbę bitów precyzji, a pozycja jest zaokrąglana do środka komórki siatki o boku \(2^{32-b} \cdot 10^{-7}\) stopnia. Przy domyślnych dla kanału publicznego 13 bitach komórka ma około 5,8 km. Z 1389 węzłów z pozycją tylko 258 podawało ją z pełną precyzją. Pozostałe są w pewnym sensie celowo rozmyte.
+
+Jak bardzo to przeszkadza, pokazuje prosty eksperyment. Dla 25 par węzłów prawdziwe położenie losowane jest wewnątrz komórki siatki, a następnie porównywana jest strata ITM dla pozycji prawdziwej i dla tej, którą węzeł by rozgłosił. Wyniki są w tabeli~\ref{tab:precyzja}.
+
+\begin{table}[ht]
+\centering
+\caption{Błąd straty ścieżki wynikający z ograniczonej precyzji pozycji}
+\label{tab:precyzja}
+\small
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Bity} & \textbf{Bok komórki} & \textbf{Błąd pozycji} & \textbf{Błąd straty} & \textbf{95. percentyl} \\
+\hline
+13 & 5,8 km & 1,9 km & 10,4 dB & 33,0 dB \\
+15 & 1,5 km & 461 m & 5,4 dB & 19,4 dB \\
+17 & 365 m & 119 m & 3,4 dB & 11,2 dB \\
+19 & 91 m & 29 m & 1,2 dB & 4,1 dB \\
+21 & 23 m & 7 m & 0,5 dB & 2,5 dB \\
+\hline
+\end{tabular}
+\end{table}
+
+Przy 13 bitach błąd jest większy niż cały fading. Takie węzły nie nadają się do sprawdzania modelu łączy. Dopiero od mniej więcej 19 bitów błąd pozycji przestaje mieć znaczenie. Przy okazji wyszedł błąd w symulatorze. Dwa węzły z zaokrągloną pozycją często lądują w tym samym punkcie, a dla odległości zero biblioteka itmlogic dzieliła przez zero i cały scenariusz nie dawał się policzyć. Teraz odległość jest ograniczona od dołu do jednego metra.
+
+Do porównań wzięte zostały więc tylko węzły, które we wszystkich raportach podają pozycję z pełną precyzją, nie przemieszczają się i nie mają podejrzanie okrągłych współrzędnych. Zostało ich 149. Trzeba jednak pamiętać, że większość z nich ma pozycję wpisaną ręcznie. Pełna precyzja zapisu nie gwarantuje, że ktoś trafił w swój dach.
+
+\section{Co można zobaczyć w raportach}
+
+Bramka wysyła do serwera pierwszą kopię pakietu, jaką usłyszy. Oryginalna transmisja jest zawsze pierwsza w czasie. Jeśli więc bramka zgłasza pakiet bez zużytych skoków, a ostatnim nadawcą jest sam autor, to łącze bezpośrednie istnieje. Jeśli natomiast bramka słyszała dany węzeł wiele razy, ale zawsze dopiero po retransmisji, to bezpośredniego łącza najpewniej nie ma.
+
+Nie każda bramka nadaje się na takiego obserwatora. Część z nich zgłasza każdy pakiet z wyzerowanym licznikiem skoków albo w ogóle nie raportuje odbiorów bezpośrednich. Wygląda to na mostki MQTT, a nie na radio. Takie bramki zostały pominięte, bo ich „brak łącza” nic nie znaczy.
+
+Z węzłów o pełnej precyzji zbudowanych zostało osiem rozłącznych klastrów, po co najwyżej dziesięć węzłów, w różnych częściach kraju: okolice Zielonej Góry i Nowej Soli, Rzeszów, Lublin, Siedlce, Szczecin, Poznań i Warszawa. Preset każdego klastra wynika z hasha kanału w surowych pakietach. Większość pracuje na MEDIUM\_FAST, zachód kraju na SHORT\_SLOW, a Siedlce na LONG\_FAST. W klastrach jest 87 par nadajnik i bramka z wiarygodną obserwacją. W 31 z nich łącze bezpośrednie istnieje, w 56 nie.
+
+\section{Łącza}
+
+Pierwsza wersja modelu przewidywała łącze prawie wszędzie. Wykrywała 94\% prawdziwych łączy, ale poprawnie odrzucała tylko 36\% par, które w rzeczywistości się nie słyszą. Na parach odległych o 5 do 15 km model widział łącze w 18 przypadkach na 18. W rzeczywistości były cztery. Moc na działających łączach była zawyżona średnio o 13,8 dB.
+
+Sama kolejność łączy była przy tym całkiem dobra. Pole pod krzywą ROC dla marginesu łącza wynosi 0,80. Model więc wie, które łącze jest lepsze, a które gorsze. Myli się co do tego, gdzie leży granica.
+
+Pierwsze poprawki dotyczyły oczywistych rzeczy: mocy 22 dBm zamiast 27, szumu wyliczanego z pasma i gęstszego profilu terenu. Zawyżenie mocy spadło do 10,1 dB, a błąd SNR z 41 do 12 dB. To wciąż za mało.
+
+Tu pojawia się ciekawa sprzeczność. Gdy dobiera się samą stałą stratę otoczenia, moc na działających łączach zgadza się najlepiej przy 5 do 10 dB. Odsetek istniejących łączy zgadza się jednak dopiero przy 20 do 30 dB. Rozwiązaniem jest trwałe cieniowanie łącza ze wzoru~\eqref{eq:pl_sym}. Oglądamy tylko te łącza, które działają, a działają głównie te, którym cieniowanie akurat sprzyja. Ich moc jest więc wyższa od mediany modelu i ta selekcja tłumaczy całą rozbieżność. Tabela~\ref{tab:cieniowanie} pokazuje to na liczbach.
+
+\begin{table}[ht]
+\centering
+\caption{Zgodność modelu z danymi dla różnych wartości straty otoczenia i cieniowania}
+\label{tab:cieniowanie}
+\small
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\(L_{ot}\) [dB] & \(\sigma_{\ell}\) [dB] & \textbf{Błąd mocy (dane)} & \textbf{Błąd mocy (model)} & \textbf{Łącza (model)} \\
+\hline
+10 & 10 & \(+0{,}1\) dB & \(-4{,}9\) dB & 0,58 \\
+20 & 15 & \(-9{,}9\) dB & \(-10{,}2\) dB & 0,46 \\
+25 & 20 & \(-14{,}9\) dB & \(-15{,}0\) dB & 0,41 \\
+30 & 20 & \(-19{,}9\) dB & \(-17{,}5\) dB & 0,36 \\
+\hline
+\end{tabular}
+\end{table}
+
+W danych łącza istnieją w 36\% par. Strata otoczenia od 25 do 30 dB i cieniowanie z odchyleniem około 20 dB oddają jednocześnie i ten odsetek, i moc działających łączy. Dwadzieścia decybeli to dużo więcej niż typowe cieniowanie terenowe, które w literaturze wynosi zwykle od 6 do 12 dB. Ten parametr zbiera jednak wszystko, czego model nie wie o konkretnych instalacjach: prawdziwą wysokość anteny (znaną tylko dla 40 z 72 węzłów w klastrach), dokładność ręcznie wpisanej pozycji, kable i to, czy antena stoi na dachu, czy w pokoju. Część tej zmienności to cecha węzła, a nie łącza. Do opisania jej osobno dla każdego węzła danych jest jednak za mało.
+
+\section{Routing}
+
+Ostatni test jest najbliższy temu, do czego symulator powstał. Pięć klastrów zostało uruchomionych na prawdziwych węzłach \texttt{meshtasticd}, z rolami i limitami skoków odczytanymi z sieci. Każdy węzeł wysłał trzy wiadomości rozgłoszeniowe, a potem traceroute do głównej bramki klastra. Dla każdej wiadomości liczy się pierwszy udany odbiór na bramce: ile skoków zużył pakiet i który węzeł go ostatnio powtórzył. To samo da się odczytać z raportów lorastats.
+
+Porównanie dotyczy 72 par nadawca i bramka oraz trzech wariantów modelu łączy. Wariant fizyczny to sam teren i budynki. Dwa warianty skalibrowane mają stratę otoczenia 27 dB, cieniowanie 20 dB i różnią się tylko seedem cieniowania. Wyniki są w tabeli~\ref{tab:routing}. Te przebiegi odbyły się jeszcze bez modelu kolizji.
+
+\begin{table}[ht]
+\centering
+\caption{Routing w symulacji w porównaniu z siecią rzeczywistą}
+\label{tab:routing}
+\begin{tabular}{|p{6.6cm}|c|c|c|}
+\hline
+ & \textbf{Fizyczny} & \textbf{Seed 1} & \textbf{Seed 2} \\
+\hline
+Pary osiągnięte w symulacji & 51 & 51 & 44 \\
+Łącza bezpośrednie (symulacja / sieć) & 44 / 12 & 25 / 11 & 24 / 11 \\
+Zgodność: bezpośrednio czy przez pośrednika & 37\% & 65\% & 61\% \\
+Ta sama liczba skoków & 27\% & 33\% & 36\% \\
+Średnia różnica liczby skoków & \(-1{,}47\) & \(-0{,}92\) & \(-0{,}93\) \\
+Ten sam węzeł pośredniczący z klastra & brak przypadków & 6 z 6 & 3 z 6 \\
+\hline
+\end{tabular}
+\end{table}
+
+W wariancie fizycznym prawie każdy węzeł słyszy bramkę bezpośrednio. Trasy wychodzą więc o półtora skoku krótsze niż w sieci, a retransmisji praktycznie nie ma czego porównywać. Po kalibracji zgodność co do tego, czy pakiet idzie bezpośrednio, czy przez pośrednika, rośnie z 37\% do ponad 60\%. Gdy w prawdziwej sieci pakiet przekazuje węzeł z klastra, symulacja wskazuje ten sam węzeł w dziewięciu przypadkach na dwanaście.
+
+Część rozbieżności zostanie zawsze. W prawdziwej sieci wiele tras przechodzi przez węzły spoza klastra, które nie podają dokładnej pozycji i nie mogły zostać umieszczone w symulacji. Stąd w symulacji nadal brakuje średnio około jednego skoku, a mniej więcej co trzecia para jest w ogóle nieosiągalna. Widać też, że wynik zależy od losowania cieniowania. Wnioski o routingu trzeba więc wyciągać z kilku przebiegów.
+
+Trzeba też uczciwie zaznaczyć jedną rzecz. Parametry kalibracji zostały dobrane na tych samych parach węzłów, na których potem sprawdzany jest routing. Kalibracja dotyczyła wyłącznie łączy, a routing robi niezmieniony firmware, więc test nie jest pozbawiony sensu. Nie jest jednak w pełni niezależny. Lepszą weryfikację dałby drugi, osobny zbiór danych, na przykład z innego okresu albo z pomiarów prowadzonych celowo.
