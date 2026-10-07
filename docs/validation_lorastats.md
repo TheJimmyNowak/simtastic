@@ -197,33 +197,55 @@ kwantyzacji) dawały dystans 0 i `ZeroDivisionError` w `itmlogic` (`hzns`), prze
 udawał się precompute całego scenariusza. `compute_path_loss_db` przyjmuje teraz
 minimalny dystans 1 m (strata wolnej przestrzeni ok. 31 dB przy 869,5 MHz).
 
-## Wyniki: routing (częściowe)
+## Wyniki: routing
 
-Rzeczywiste dane: dla par nadawca → bramka rozkład liczby skoków (`hop_start − hop_limit`)
-i retransmitujący węzeł (`relay_node`) przy jednym skoku. Symulacja: klaster na
-prawdziwym `meshtasticd` z rolami (`ROUTER_LATE` → `ROUTER`, `CLIENT_BASE` → `CLIENT`)
-i `hop_limit` węzłów z sieci, 3 rundy broadcastów z każdego węzła i traceroute do
-głównej bramki, ruch przez `TrafficGenerator` backendu.
+Rzeczywiste dane: dla par nadawca → bramka (tylko bramki będące obserwatorami radiowymi)
+rozkład liczby skoków (`hop_start − hop_limit`) i retransmitujący węzeł (`relay_node`)
+przy jednym skoku.
 
-Wykonano jeden przebieg — klaster k1 (Rzeszów), model bez kalibracji:
+Symulacja przez aplikację (API backendu, `TrafficGenerator`, ślad z InfluxDB): klastry
+k0, k1, k2, k3, k6 na prawdziwym `meshtasticd` z rolami (`ROUTER_LATE` → `ROUTER`,
+`CLIENT_BASE` → `CLIENT`) i `hop_limit` węzłów z sieci; 3 rundy broadcastów z każdego węzła
+co 5 s i traceroute do głównej bramki; fading σ = 8 dB. Dla każdej sondy liczy się pierwszy
+skuteczny odbiór na bramce: liczba skoków i węzeł, który go nadał. Warianty modelu łączy:
 
-| metryka | wynik |
-|---|---|
-| zgodność „bezpośrednio / przez pośrednika” | 7 / 10 par |
-| ta sama liczba skoków (moda) | 6 / 10; w pozostałych symulacja ma mniej skoków |
-| zgodny węzeł retransmitujący z klastra | 2 / 2 (w sieci i w symulacji głównie `fa2d18f2`) |
+- **fizyczny** — `clutter_loss_db = 0`, bez cieniowania;
+- **skalibrowany** — `clutter_loss_db = 27`, `link_shadowing_sigma_db = 20`, dwa losowania
+  cieniowania (seed 1 i 2).
 
-**Ograniczenia — wyników routingu nie należy jeszcze traktować jako miarodajnych**:
+Wszystkie 15 przebiegów: 100% zaplanowanych broadcastów na eterze, traceroute z odpowiedziami,
+Stop 3,5–7,9 s.
 
-- na eter trafiło 24 z 30 broadcastów, żaden traceroute nie został nadany, dostarczono
-  14 z 48 pakietów mimo silnych łączy — to problem stanowiska testowego (wysyłanie przez
-  `TCPInterface` blokuje się na kolejce, `close()` się zawiesza), nie modelu;
-- w większości klastrów rzeczywiste retransmisje wykonują węzły spoza klastra (bez precyzyjnej
-  pozycji), więc klaster precyzyjnych węzłów nie odtworzy rzeczywistego routingu;
-- symulator nie ma roli `ROUTER_LATE`, a model nie uwzględnia kolizji.
+72 pary nadawca → bramka:
 
-Do zrobienia: naprawić wysyłanie w środowisku testowym, powtórzyć k0, k1, k2, k3, k6
-w wariantach Δ = 0 i Δ = 25 dB.
+| | fizyczny | skalibrowany, seed 1 | skalibrowany, seed 2 |
+|---|---|---|---|
+| pary osiągnięte w symulacji | 51 | 51 | 44 |
+| łącza bezpośrednie: symulacja / rzeczywistość | 44 / 12 | 25 / 11 | 24 / 11 |
+| zgodność „bezpośrednio / przez pośrednika” | 19 / 51 (37%) | 33 / 51 (65%) | 27 / 44 (61%) |
+| ta sama liczba skoków (moda) | 14 / 51 (27%) | 17 / 51 (33%) | 16 / 44 (36%) |
+| średnia różnica skoków (symulacja − rzeczywistość) | −1,47 | −0,92 | −0,93 |
+| zgodny retransmitujący węzeł z klastra | brak przypadków | 6 / 6 | 3 / 6 |
+
+**Wnioski**
+
+- Model fizyczny przewiduje prawie 4× za dużo łączy bezpośrednich, więc trasy są krótsze
+  o 1,5 skoku. Ponieważ niemal wszystko słyszy bramkę bezpośrednio, nie ma retransmisji do
+  porównania.
+- Kalibracja podnosi zgodność „bezpośrednio / przez pośrednika” z 37% do 61–65% i zmniejsza
+  różnicę skoków do ok. 0,9. Gdy w sieci retransmituje węzeł z klastra, symulacja wskazuje
+  ten sam węzeł w 9 z 12 przypadków.
+- Wyniki zależą od losowania cieniowania (np. 51 vs 44 osiągnięte pary) — wnioski należy
+  uśredniać po kilku seedach.
+- Symulacja nadal ma średnio mniej skoków i nie osiąga ok. 30% par: w sieci wiele tras
+  przechodzi przez węzły spoza klastra (bez precyzyjnej pozycji), których w symulacji nie ma.
+- Parametry kalibracji dobrano na tych samych parach, więc test routingu nie jest w pełni
+  niezależny od kalibracji; niezależny jest tylko w tym sensie, że kalibracja dotyczyła
+  łączy, a nie routingu firmware.
+
+Pierwszy przebieg routingu (sprzed poprawek) był niemiarodajny: niesaturowany SNR
+blokował kolejki nadawcze węzłów, a wstrzykiwanie odbiorów przez kontrolę przepływu
+klienta zatrzymywało całą symulację. Obie przyczyny usunięto (commit `006396e`).
 
 ## Reprodukcja
 
