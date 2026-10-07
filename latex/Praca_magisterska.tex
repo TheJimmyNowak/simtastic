@@ -1,0 +1,564 @@
+\documentclass[12pt,a4paper,twoside]{report}
+
+% Wybierz styl nagłówka rozdziału:
+% 'classic' — Rozdział X (nad tytułem)
+% 'inline'  — X. Tytuł rozdziału (w jednej linii)
+
+\def\chapterstyletype{classic}  % lub zmień na 'inline'
+
+%MARGINESY
+\usepackage[left=3cm, right=2.5cm, top=2.5cm, bottom=2.5cm, headsep=1.2cm]{geometry}
+
+%INTERLINIA
+\linespread{1.3}
+
+%Język polski
+\usepackage{polski}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{longtable}
+
+% Pakiet, który poprawia typografię: kerning, justowanie i drobne szczegóły tekstu
+\usepackage{microtype}
+
+%landscape obrocone
+\usepackage{pdflscape}
+
+%tekst matematyczny
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amsthm}
+
+%dodawanie grafiki
+\usepackage{graphicx}
+
+%do grupowania rysunków
+\usepackage{subcaption}
+
+%brak wdów - pojedyncze linie
+\usepackage[all]{nowidow}
+
+%Zapobieganie dzieleniu się wyrazów
+%\tolerance=1
+\emergencystretch=\maxdimen
+\hyphenpenalty=10000
+\hbadness=10000
+
+%do kolorów
+%\usepackage{color}
+\usepackage{xcolor}
+
+\usepackage{textcomp}%do symbolu euro
+\usepackage[official]{eurosym}%drugi symbol euro
+
+\usepackage[colorlinks=true,allcolors=black]{hyperref}
+
+\usepackage{indentfirst} %dodaje wcięcie w pierwszym akapicie
+
+%listy numerowane
+\usepackage{enumitem}
+\setlist[enumerate]{noitemsep,nolistsep}
+\setlist[itemize]{noitemsep,nolistsep} 
+
+%do modyfikacji wyglądu spisu treści, listy rysunków i tabel
+\usepackage{tocloft}
+
+%do tabel
+\usepackage{tabularx}
+\usepackage{multirow} %do połączenia wierszy
+\usepackage{diagbox}%do ukośnej linii w tabelii
+\usepackage{booktabs}
+\usepackage{array}
+\newcolumntype{Y}{>{\centering\arraybackslash}X}
+\newcolumntype{j}{>{\raggedleft}p{200pt}}
+\usepackage{caption}
+\usepackage{lscape}
+
+
+
+
+
+%podpisy rysunków i tabel
+\renewcommand*{\figurename}{Rys.} %zmiana podpisu rysunku
+\renewcommand*{\tablename}{Tab.} %zmiana podpisu tabeli
+\captionsetup{font=small, labelsep=period, justification=centerlast} % Modyfikacja stylu podpisów: 
+% - font=small ustawia rozmiar czcionki podpisu na 11 pt (można użyć footnotesize dla 10 pt),
+% - labelsep=period wprowadza kropkę po numerze (zamiast dwukropka),
+% - justification=centerlast centrowanie podpisu z wyrównaniem ostatniego wiersza do środka.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Ustawienie niestandardowej numeracji sekcji i podsekcji.
+% Dodanie kropki po numerach (np. z "2.1 Rozdział" na "2.1. Rozdział").
+% Można odkomentować, jeśli chcemy standardową formę numeracji - wtedy odkomentować wszystko poniżej do %%spis treści%%%%
+\renewcommand{\thesection}{\arabic{chapter}.\arabic{section}.} % Numeracja sekcji w formacie: numer_rozdziału.numer_sekcji (np. 2.3.)
+\renewcommand{\thesubsection}{\arabic{chapter}.\arabic{section}.\arabic{subsection}.} % Numeracja podsekcji w formacie: numer_rozdziału.numer_sekcji.numer_podsekcji (np. 2.3.1.)
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%Spis treści%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\setlength{\cftbeforechapskip}{0pt} %ustawia odstęp przed rozdziałami w spisie treści na 0pt; można zmienić wartość (np. 10pt), by zwiększyć odstęp, lub zakomentować tę linię, by przywrócić domyślne ustawienie
+
+%%%%%%%%%%%%%%%%%%%%%%%%Tytuły rozdziałów%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{titlesec}
+\renewcommand{\cftchapaftersnum}{.}%ustawia, że po numerze rozdziału w spisie treści pojawi się kropka .
+%\renewcommand{\chaptername}{}
+%\renewcommand{\thechapter}{\arabic{chapter}.} % Dodaje kropkę po numerze rozdziału
+
+\usepackage{ifthen}
+\usepackage{ragged2e}  % do lewego wyrównania z lepszym łamaniem niż standardowy \raggedright
+
+%instrukcja warunkowa pozwalająca na wybór formatowania nagłówka/tytułu rozdziału
+
+\ifthenelse{\equal{\chapterstyletype}{classic}}{
+  % Styl: Rozdział X (na górze), tytuł pod spodem
+  \titleformat{\chapter}[display]
+    {\normalfont\LARGE\bfseries\RaggedRight}
+    {\chaptertitlename\ \thechapter} % np. "Rozdział 1"
+    {0pt}
+    {\LARGE}
+}{%
+  % Styl: X. Tytuł rozdziału (inline) z wiszącym wcięciem i wyrównaniem wielowierszowym
+  \titleformat{\chapter}[block]
+    {\normalfont\LARGE\bfseries\RaggedRight}
+    {}
+    {0pt}
+    {%
+      \makebox[1em][l]{\thechapter.}%
+      \hangindent=1em
+      \hangafter=1
+      \ignorespaces
+    }
+}
+
+% Styl rozdziału bez numeru (dla Bibliografii, Streszczenia itd.)
+\titleformat{name=\chapter, numberless}[block]
+  {\normalfont\LARGE\bfseries\RaggedRight}
+  {}
+  {0pt}
+  {\hangindent=1em\hangafter=1}
+
+%styl sekcji
+\titleformat{\section}[hang]
+  {\normalfont\Large\bfseries\RaggedRight} % format
+  {\thesection}               % section number with dot
+  {0.3em}                       % space between number and title
+  {}                          % before title code
+%styl podsekcji
+  \titleformat{\subsection}[hang]
+  {\normalfont\large\bfseries\RaggedRight} % format
+  {\thesubsection}               % section number with dot
+  {0.3em}                       % space between number and title
+  {}                          % before title code
+%stylpodpodsekcji
+  \titleformat{\subsubsection}[hang]
+  {\normalfont\normalsize\bfseries} % format
+  {}               % brak numeru, czyli pusty label
+  {0pt}            % odstęp między label a tytułem (brak, bo label pusty)
+  {}                % before title code
+
+% Ustawienie odstępów wokół tytułu rozdziału:
+% \titlespacing*{<komenda>}{<lewy margines>}{<przed tytułem>}{<po tytule>}
+% Tutaj:
+% - lewy margines       = 0pt (brak wcięcia)
+% - odstęp przed tytułem = 0pt (brak pustego miejsca na górze)
+% - odstęp po tytule     = \baselineskip (dokładnie jeden wiersz odstępu przed tekstem)
+\titlespacing*{\chapter}{0pt}{0pt}{\baselineskip}
+
+
+%definicje, twierdzenia,...
+\newtheorem{twierdzenie}{Twierdzenie}[chapter]
+\newtheorem{lemat}[twierdzenie]{Lemat}
+\newtheorem{wniosek}[twierdzenie]{Wniosek}
+\newtheorem{obserwacja}[twierdzenie]{Obserwacja}
+\newtheorem{uwaga}[twierdzenie]{Uwaga}
+\theoremstyle{definition} %prostowanie czcionki
+\newtheorem{przyklad}[twierdzenie]{Przykład}
+\newtheorem{definicja}[twierdzenie]{Definicja}
+
+
+%używane pakiety
+%\usepackage{setspace}
+%\usepackage{cite}
+%\usepackage{tikz}
+%\usepackage{subcaption}
+
+
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{listings}
+
+
+
+
+
+
+\definecolor{niebieski}{RGB}{0,130,150} %kolor niebieski
+\definecolor{mygray}{gray}{0.6} 		% kolor szary
+\definecolor{zielony}{rgb}{0.98, 1.0, 0.98} % kolor zielony
+
+\lstset{ 
+	backgroundcolor=\color{zielony},   % choose the background color; you must add \usepackage{color} or \usepackage{xcolor}; should come as last argument
+	basicstyle=\sffamily, %\footnotesize\ttfamily\fontsize{11}{0.8em}\selectfont,        % the size of the fonts that are used for the code
+	breakatwhitespace=false,         % sets if automatic breaks should only happen at whitespace
+	breaklines=true,                 % sets automatic line breaking
+	captionpos=b,                    % sets the caption-position to bottom
+	columns=fullflexible,
+	commentstyle=\color{mygreen},    % comment style
+	escapeinside={\%*}{*)},          % if you want to add LaTeX within your code
+	extendedchars=true,              % lets you use non-ASCII characters; for 8-bits encodings only, does not work with UTF-8
+	firstnumber=1,                   % start line enumeration with line 1
+	frame=single,	                   % adds a frame around the code
+	keepspaces=true,                 % keeps spaces in text, useful for keeping indentation of code (possibly needs columns=flexible)
+	keywordstyle=\color{blue},       % keyword style
+	numbers=left,                    % where to put the line-numbers; possible values are (none, left, right)
+	numbersep=5pt,                   % how far the line-numbers are from the code
+	numberstyle=\tiny\color{mygray}, % the style that is used for the line-numbers
+	rulecolor=\color{black},         % if not set, the frame-color may be changed on line-breaks within not-black text (e.g. comments (green here))
+	xleftmargin=0pt,%\parindent,
+	showspaces=false,                % show spaces everywhere adding particular underscores; it overrides 'showstringspaces'
+	showstringspaces=false,          % underline spaces within strings only
+	showtabs=false,                  % show tabs within strings adding particular underscores
+	language=python,
+	morekeywords={*, end, function, ...}
+	stepnumber=1,                    % the step between two line-numbers. If it's 1, each line will be numbered
+	stringstyle=\color{mymauve},     % string literal style
+	tabsize=2	                   % sets default tabsize to 2 spaces
+}
+
+
+
+%parametry dla kodów źródłowych
+\definecolor{mygreen}{rgb}{0,0.6,0}
+\definecolor{mygray}{rgb}{0.5,0.5,0.5}
+\definecolor{mymauve}{rgb}{0.58,0,0.82}
+
+
+
+
+\begin{document}
+    \input{strona_tytulowa-2.tex} %lub strona_tytulowa-2
+    \linespread{1.3}
+    \newpage 
+%----------------------------------------------------------------------------------
+%                       PUSTA STRONA PO STRONIE TYTUŁOWEJ
+%----------------------------------------------------------------------------------
+
+
+    \thispagestyle{empty} %pusta strona bez numeru po stronie tytułowej
+    ~\vfill
+	\newpage
+    
+%---------------------------------------------------------------------------------
+%                      SPIS TREŚCI
+%---------------------------------------------------------------------------------
+	\renewcommand{\contentsname}{\LARGE Spis treści}
+    \tableofcontents
+    \setcounter{tocdepth}{1}
+    %\setcounter{page}{1} %numeracja stron od 1
+	%\thispagestyle{headings}
+    \cleardoublepage %wymusza rozpoczęcie nowego rozdziału na stronie nieparzystej (prawej); dodaje pustą stronę, jeśli potrzeba
+    %\clearpage  %kończy bieżącą stronę i wypisuje wszystkie zaległe elementy (np. rysunki, tabele), ale nie wymusza rozpoczęcia nowego rozdziału na stronie nieparzystej
+    %\newpage %Wymusza przejście do nowej strony, ale nie kończy otwartych elementów
+
+%---------------------------------------------------------------------------------
+%                      WSTĘP
+%---------------------------------------------------------------------------------
+	
+	\chapter*{Wstęp} 
+    \addcontentsline{toc}{chapter}{Wstęp}
+	%\thispagestyle{empty}%strona nie jest numerowana
+Technologie radiowe rozwijają się w dynamicznym tempie, a wraz z nimi pojawiają się nowe rozwiązania wykorzystywane do budowy bezprzewodowych sieci komunikacyjnych. Jednym z przykładów jest technologia LoRa, wykorzystująca modulację o tej samej nazwie, która została wprowadzona na rynek w 2009 roku. Jej charakterystyczne cechy, takie jak duży zasięg transmisji przy niewielkim zużyciu energii, sprawiły, że znalazła zastosowanie między innymi w systemach Internetu Rzeczy oraz rozproszonych sieciach radiowych.
+
+W ostatnich latach rozwijane są również rozwiązania wykorzystujące LoRa do tworzenia rozproszonych sieci typu mesh, w których poszczególne urządzenia mogą pełnić jednocześnie funkcję nadawczą, odbiorczą oraz pośredniczyć w przekazywaniu danych pomiędzy innymi węzłami. Rozwiązania tego typu zaczęły zyskiwać na znaczeniu około 2020 roku, wraz z pojawieniem się pierwszych projektów umożliwiających budowę praktycznych sieci LoRa mesh.
+
+Dynamiczny rozwój tego rodzaju sieci powoduje potrzebę opracowania narzędzi pozwalających na analizę ich funkcjonowania w różnych warunkach. Szczególnie istotna jest możliwość badania wpływu liczby i rozmieszczenia węzłów, parametrów transmisji oraz topologii sieci na jej wydajność i niezawodność. W tym celu przydatne są środowiska symulacyjne umożliwiające odwzorowanie zachowania sieci przed jej rzeczywistym wdrożeniem. Dostępność dedykowanych narzędzi pozwalających na symulację specyficznych mechanizmów współczesnych sieci LoRa mesh jest jednak ograniczona, co stanowi podstawę do podjęcia niniejszego tematu.
+	
+    \cleardoublepage %
+
+%%%%%%%%%%%%%%%%%%%%% --- Zasadnicza treść rozprawy zaczyna się tutaj --- %%%%%%%%%%%%%%%%%%%%%
+
+        \chapter{Symulacja warstwy radiowej}
+
+\section{Modulacja LoRa}
+Jest to autorska technika opatentowana przez firmę Semtech, stosowana w komunikacji radiowej. Wykorzystują ją urządzenia o niskim poborze mocy, często zasilane bateryjnie. LoRa korzysta z pasm ISM (przemysłowych, naukowych i medycznych), które nie wymagają licencji – na przykład 433,05–434,79 MHz oraz 902–928 MHz. Technologia ta wywodzi się z metody modulacji CSS (ang. *Chirp Spread Spectrum*), w której szybkość transmisji danych jest obniżana w celu poprawy czułości. Zgodnie z twierdzeniem Shannona-Hartleya, zwiększenie szerokości pasma poprawia parametry połączenia w odniesieniu do stosunku sygnału do szumu. W systemach wykorzystujących rozpraszanie widma (ang. *Spread Spectrum*) przesyłane dane są mnożone przez sekwencję chipów (zazwyczaj sygnał o częstotliwości znacznie wyższej niż częstotliwość sygnału informacyjnego). Po stronie odbiorczej sygnał jest mnożony przez tę samą sekwencję chipów, co pozwala na odzyskanie oryginalnych danych. W przeciwieństwie do standardowej komunikacji z rozpraszaniem widma, LoRa wykorzystuje sygnał typu „chirp”, czyli sygnał, którego częstotliwość zmienia się w czasie.
+
+\begin{itemize}
+    \item \textbf{Częstotliwość środkowa} – częstotliwość, wokół której transmitowany jest sygnał.
+    \item \textbf{Szerokość pasma} – w technice radiowej (RF) jest to zakres częstotliwości (mierzony w hercach) zajmowany przez sygnał.
+    \item \textbf{Współczynnik rozproszenia (Spreading Factor)} – modulacja LoRa wykorzystuje 6 współczynników rozproszenia; parametr ten wpływa na szybkość transmisji danych, czas zajętości kanału (airtime), czas pracy na baterii oraz czułość odbiornika.
+    \item \textbf{Współczynnik kodowania (Code Rate)} – określa udział bitów niosących użyteczną informację do powtórzonych bitów używanych podczas korekcji błędów.
+\end{itemize}
+
+\section{Wpływ doboru parametrów na szybkość transmisji}
+
+Jednym z istotnych zagadnień podczas projektowania sieci LoRa jest dobór parametrów transmisji, ponieważ mają one bezpośredni wpływ na szybkość przesyłania danych, czas zajęcia kanału oraz zasięg łączności. Do najważniejszych parametrów należą szerokość pasma (\(BW\)), współczynnik rozpraszania (\(SF\)) oraz współczynnik kodowania (\(CR\)).
+
+Szybkość symbolowa w modulacji LoRa określana jest zależnością:
+
+	\begin{equation}\label{R_S}
+        R_S = \frac{BW}{2^{SF}}
+    \end{equation}
+
+gdzie \(R_S\) oznacza szybkość transmisji symboli w symbolach na sekundę, natomiast \(BW\) oznacza szerokość pasma sygnału. Zależność ta pokazuje, że zwiększenie szerokości pasma powoduje proporcjonalny wzrost szybkości symbolowej. Z kolei zwiększenie współczynnika rozpraszania powoduje wykładniczy spadek szybkości symbolowej.
+
+Czas trwania pojedynczego symbolu można wyznaczyć jako odwrotność szybkości symbolowej:
+
+	\begin{equation}\label{T_S}
+        T_S = \frac{1}{R_S} = \frac{2^{SF}}{BW}
+    \end{equation}
+
+Wzrost wartości \(SF\) powoduje więc wydłużenie czasu transmisji pojedynczego symbolu. Jest to jedna z podstawowych zależności wpływających na charakterystykę transmisji LoRa. Wyższe wartości \(SF\) zwiększają odporność transmisji i umożliwiają uzyskanie większego zasięgu, jednak odbywa się to kosztem szybkości transmisji oraz zwiększenia czasu zajęcia kanału.
+
+Przybliżoną szybkość transmisji danych można określić za pomocą zależności:
+
+	\begin{equation}\label{R_b}
+        R_b = SF \cdot \frac{BW}{2^{SF}} \cdot CR
+    \end{equation}
+
+gdzie \(R_b\) oznacza szybkość transmisji bitów, a \(CR\) współczynnik kodowania stosowany przez mechanizm korekcji błędów. Wartość \(CR\) może przyjmować wartości od \(4/5\) do \(4/8\). Zwiększenie wartości \(CR\) oznacza zastosowanie większej ilości nadmiarowych danych przeznaczonych do korekcji błędów, co poprawia odporność transmisji, lecz jednocześnie zmniejsza efektywną szybkość przesyłania danych.
+
+W modulacji LoRa każdy symbol jest reprezentowany przez \(2^{SF}\) chipów. Szybkość transmisji chipów określana jest zależnością:
+
+	\begin{equation}\label{R_C}
+        R_C = R_S \cdot 2^{SF}
+    \end{equation}
+
+Po podstawieniu równania opisującego szybkość symbolową otrzymujemy:
+
+	\begin{equation}\label{wzór}
+        R_C = \frac{BW}{2^{SF}}\cdot 2^{SF}=BW
+    \end{equation}
+
+Oznacza to, że szybkość chipowa jest bezpośrednio równa szerokości pasma. Zwiększenie \(SF\) nie zmienia zatem szybkości generowania chipów, lecz powoduje zwiększenie liczby chipów przypadających na pojedynczy symbol, a w konsekwencji wydłużenie czasu jego transmisji.
+
+Powyższe zależności pokazują występowanie kompromisu pomiędzy szybkością transmisji a parametrami odpowiedzialnymi za odporność i zasięg transmisji. Zwiększenie \(SF\) pozwala na uzyskanie większego zasięgu kosztem przepływności i czasu zajęcia kanału, natomiast zwiększenie \(BW\) pozwala zwiększyć szybkość transmisji kosztem zmniejszenia odporności na wąskopasmowe zakłócenia. Dobór parametrów transmisji powinien być zatem uzależniony od wymagań konkretnej sieci oraz warunków propagacyjnych.
+
+\section{Budżet łącza radiowego oraz wpływ sprzętu}
+
+Budżet łącza radiowego (ang. \textit{link budget}) jest zestawieniem wszystkich zysków i strat mocy występujących podczas transmisji sygnału pomiędzy nadajnikiem a odbiornikiem. Pozwala on oszacować moc sygnału docierającego do wejścia odbiornika oraz określić, czy przy założonych parametrach transmisja może zostać poprawnie odebrana.
+
+Moc sygnału na wejściu odbiornika można w uproszczeniu określić za pomocą zależności:
+
+	\begin{equation}\label{linkbudget}
+        P_{RX} = P_{TX} + G_{TX} - L_{TX} - L_{FS} - L_M + G_{RX} - L_{RX}
+    \end{equation}
+
+gdzie:
+
+\begin{itemize}
+\item \(P_{RX}\) -- moc sygnału na wejściu odbiornika [dBm],
+\item \(P_{TX}\) -- moc wyjściowa nadajnika [dBm],
+\item \(G_{TX}\) -- zysk anteny nadawczej [dBi],
+\item \(L_{TX}\) -- straty w torze nadawczym [dB],
+\item \(L_{FS}\) -- tłumienie propagacyjne w wolnej przestrzeni (ang. \textit{Free Space Path Loss}) [dB],
+\item \(L_M\) -- dodatkowe straty propagacyjne [dB],
+\item \(G_{RX}\) -- zysk anteny odbiorczej [dBi],
+\item \(L_{RX}\) -- straty w torze odbiorczym [dB].
+\end{itemize}
+
+Tłumienie w wolnej przestrzeni można wyznaczyć na podstawie częstotliwości oraz odległości pomiędzy nadajnikiem i odbiornikiem:
+
+	\begin{equation}\label{L_FS}
+        L_{FS} = 20\log_{10}(d) + 20\log_{10}(f) + 32{,}44
+    \end{equation}
+
+gdzie \(d\) oznacza odległość pomiędzy urządzeniami wyrażoną w kilometrach, a \(f\) częstotliwość w megahercach.
+
+W rzeczywistym środowisku propagacja sygnału jest bardziej złożona niż model wolnej przestrzeni. Na poziom odbieranego sygnału wpływają między innymi przeszkody terenowe i zabudowa, odbicia, wielodrogowość, warunki atmosferyczne oraz niedopasowanie polaryzacji anten. Z tego powodu w praktycznych obliczeniach należy uwzględnić dodatkowy margines lub straty propagacyjne oznaczone jako \(L_M\).
+
+Istotnym elementem budżetu łącza jest również zastosowany sprzęt. Zwiększenie mocy nadajnika bezpośrednio zwiększa moc sygnału docierającego do odbiornika, jednak jego wpływ na zasięg nie jest liniowy. Przykładowo zwiększenie mocy nadajnika z 1 W do 2 W oznacza wzrost mocy o około 3 dB, a nie dwukrotne zwiększenie zasięgu. Z punktu widzenia budżetu łącza taki wzrost odpowiada jedynie dodaniu 3 dB do bilansu energetycznego.
+
+Duże znaczenie mają również anteny. Ich zysk wpływa bezpośrednio na budżet łącza, przy czym istotne jest nie tylko zastosowanie anteny o określonym zysku, ale również jej prawidłowe umiejscowienie, orientacja oraz zgodność polaryzacji anten nadawczej i odbiorczej. Straty występujące w przewodach koncentrycznych, złączach oraz innych elementach toru radiowego zmniejszają natomiast moc sygnału, która może zostać wypromieniowana lub odebrana.
+
+W przypadku sieci LoRa szczególne znaczenie ma także czułość odbiornika. O poprawności transmisji nie decyduje wyłącznie moc odebranego sygnału \(P_{RX}\), lecz również jego relacja względem minimalnego poziomu sygnału wymaganego przez odbiornik dla zastosowanych parametrów modulacji. Różnica pomiędzy mocą odebranego sygnału a czułością odbiornika stanowi margines łącza:
+
+	\begin{equation}\label{M}
+        M = P_{RX} - S_{RX}
+    \end{equation}
+
+gdzie \(M\) oznacza margines łącza [dB], a \(S_{RX}\) czułość odbiornika [dBm]. Dodatni margines oznacza, że poziom odebranego sygnału znajduje się powyżej deklarowanej czułości odbiornika. Im większy jest margines, tym większa jest odporność połączenia na dodatkowe straty wynikające ze zmiennych warunków propagacyjnych.
+
+Właściwy dobór elementów sprzętowych może zatem znacząco wpłynąć na rzeczywisty zasięg sieci LoRa. Zastosowanie anten o odpowiednim zysku, ograniczenie strat w torze radiowym oraz wykorzystanie urządzeń o wysokiej czułości odbiornika może przynieść większą poprawę parametrów łącza niż samo zwiększenie mocy nadajnika. Jest to szczególnie istotne w sieciach mesh, w których jakość poszczególnych połączeń pomiędzy węzłami wpływa na możliwość przekazywania danych przez kolejne węzły.
+
+\section{Modelowanie strat ścieżki}
+
+Straty ścieżki (ang. \textit{path loss}) określają zmniejszenie mocy sygnału radiowego podczas jego propagacji pomiędzy nadajnikiem a odbiornikiem. Ich wartość zależy między innymi od częstotliwości, odległości pomiędzy urządzeniami, wysokości anten oraz charakterystyki środowiska, w którym odbywa się transmisja. Dokładne określenie strat propagacyjnych jest istotnym elementem modelowania sieci radiowych, ponieważ bezpośrednio wpływa na przewidywany poziom sygnału odbieranego przez poszczególne węzły.
+
+Modele strat ścieżki można podzielić na trzy podstawowe grupy: modele statystyczne, deterministyczne oraz kombinatoryczne. Modele statystyczne opracowywane są na podstawie wyników pomiarów przeprowadzonych w określonym środowisku. Ich zaletą jest stosunkowo niewielka złożoność obliczeniowa, jednak ich dokładność może znacząco zmniejszać się w przypadku zastosowania w środowisku różniącym się od tego, dla którego zostały opracowane.
+
+Modele deterministyczne wykorzystują fizyczne prawa opisujące propagację fal radiowych. Uwzględniają między innymi geometrię obszaru, przeszkody znajdujące się pomiędzy nadajnikiem i odbiornikiem oraz zjawiska takie jak odbicie, dyfrakcja czy rozpraszanie. Pozwalają dzięki temu dokładniej odwzorować rzeczywiste warunki propagacji, jednak zazwyczaj wymagają większej liczby danych wejściowych i większej mocy obliczeniowej.
+
+Modele kombinatoryczne łączą elementy podejścia deterministycznego i statystycznego. Wykorzystują informacje dotyczące fizycznych warunków propagacji, takich jak profil terenu, a jednocześnie uwzględniają statystyczny charakter niektórych zjawisk występujących podczas transmisji. Pozwala to uzyskać kompromis pomiędzy dokładnością modelowania a złożonością obliczeniową, co jest szczególnie istotne w przypadku symulacji obejmujących dużą liczbę węzłów.
+
+Do prostych modeli strat ścieżki należy model propagacji w wolnej przestrzeni. Zakłada on brak przeszkód pomiędzy nadajnikiem i odbiornikiem oraz brak wpływu odbić i innych zjawisk charakterystycznych dla rzeczywistego środowiska. Straty w wolnej przestrzeni można wyznaczyć za pomocą wzoru \eqref{L_FS} Model ten jest prosty i charakteryzuje się bardzo małą złożonością obliczeniową, jednak nie uwzględnia rzeczywistego ukształtowania terenu ani znajdujących się na drodze sygnału przeszkód.
+
+Bardziej rozbudowane modele wykorzystują informacje o charakterystyce środowiska. Przykładem modeli statystycznych są modele Okumura-Hata oraz COST-231, które zostały opracowane na podstawie wyników pomiarów propagacji fal radiowych. Modele te mogą zapewniać dobre rezultaty w określonych typach środowisk, takich jak obszary miejskie, podmiejskie lub wiejskie, jednak ich zastosowanie jest ograniczone przez zakres częstotliwości, odległości oraz warunki, dla których zostały opracowane.
+
+W przypadku symulacji sieci rozmieszczonych na dużym obszarze istotne staje się uwzględnienie rzeczywistego ukształtowania terenu. W takiej sytuacji zastosowanie znajduje model Longley-Rice, znany również jako \textit{Irregular Terrain Model} (ITM). Model został opracowany w celu prognozowania propagacji fal radiowych w środowisku o nieregularnym ukształtowaniu terenu. W odróżnieniu od prostych modeli empirycznych wykorzystuje informacje dotyczące profilu terenu pomiędzy nadajnikiem i odbiornikiem, a także parametry opisujące środowisko propagacyjne.
+
+Model Longley-Rice uwzględnia kilka mechanizmów mających wpływ na propagację sygnału, w tym propagację w wolnej przestrzeni, dyfrakcję, odbicia od powierzchni Ziemi oraz wpływ krzywizny Ziemi. Model uwzględnia również właściwości elektryczne powierzchni oraz parametry atmosferyczne. W zależności od warunków propagacji możliwe jest uwzględnienie różnych mechanizmów dominujących na danym odcinku trasy pomiędzy nadajnikiem i odbiornikiem.
+
+Istotną cechą modelu Longley-Rice jest możliwość wykorzystania rzeczywistego profilu terenu. Dla określonej pary nadajnik--odbiornik model może otrzymać informacje o wysokości terenu w kolejnych punktach znajdujących się pomiędzy obiema antenami. Pozwala to uwzględnić sytuacje, w których bezpośrednia droga pomiędzy węzłami jest częściowo lub całkowicie zasłonięta przez wzniesienia terenu. Jest to szczególnie istotne w przypadku sieci radiowych rozmieszczonych na dużym obszarze, gdzie różnice wysokości mogą znacząco wpływać na możliwość nawiązania łączności.
+
+Do podstawowych danych wejściowych modelu Longley-Rice należą między innymi częstotliwość pracy, odległość pomiędzy nadajnikiem i odbiornikiem, wysokości anten oraz profil terenu. Dodatkowo model może uwzględniać parametry środowiska, takie jak przewodność i przenikalność elektryczna powierzchni, współczynnik załamania atmosferycznego oraz charakterystykę klimatyczną obszaru. Wynikiem obliczeń jest między innymi przewidywana wartość strat propagacyjnych, która może następnie zostać wykorzystana do wyznaczenia mocy sygnału docierającego do odbiornika.
+
+W niniejszej pracy do modelowania strat propagacyjnych wykorzystany zostanie model Longley-Rice. Jego wybór wynika przede wszystkim z charakteru symulowanej sieci. Węzły sieci LoRa mogą być rozmieszczone na znacznym obszarze, a ich wzajemna widoczność radiowa może być silnie uzależniona od ukształtowania terenu. Zastosowanie modelu uwzględniającego profil terenu pozwala zatem uzyskać bardziej realistyczne wyniki niż wykorzystanie wyłącznie modelu propagacji w wolnej przestrzeni lub prostego modelu empirycznego.
+
+Wybór modelu Longley-Rice pozwala również zachować rozsądny kompromis pomiędzy dokładnością odwzorowania warunków propagacyjnych a złożonością obliczeniową symulatora. Jest to szczególnie istotne w przypadku sieci mesh, w których liczba potencjalnych połączeń pomiędzy węzłami rośnie wraz z liczbą urządzeń. Dla każdej pary węzłów możliwe jest wyznaczenie strat propagacyjnych, a następnie, na podstawie mocy nadajnika, zysków anten oraz czułości odbiornika, określenie możliwości nawiązania połączenia radiowego.
+
+Otrzymana wartość strat propagacyjnych może zostać następnie wykorzystana w obliczeniach budżetu łącza ze wzoru \eqref{linkbudget}. W pracy korzystam z już gotowej biblioteki itmlogic \cite{oughton2020}.
+
+Do obliczeń używamy numerycznego modelu terenu Shuttle Radar Topography Mission (SRTM).
+
+\cleardoublepage
+\chapter{Modelowanie warstwy logicznej sieci LoRa Mesh} 
+    \addcontentsline{toc}{chapter}{Modelowanie warstwy logicznej sieci LoRa Mesh}
+    Sieci LoRa Mesh stanowią rodzaj bezprzewodowych sieci kratowych, w których urządzenia wykorzystujące technologię LoRa mogą nie tylko bezpośrednio komunikować się ze sobą, ale również przekazywać dane pomiędzy kolejnymi węzłami. Dzięki temu informacja może zostać dostarczona do urządzenia docelowego poprzez wiele pośrednich węzłów, co pozwala zwiększyć zasięg sieci bez konieczności stosowania centralnej infrastruktury.
+
+    W tego typu sieciach szczególne znaczenie ma warstwa logiczna odpowiedzialna za sposób adresowania urządzeń, przekazywania pakietów oraz wyboru kolejnych węzłów na drodze do odbiorcy. Właściwe zaprojektowanie tych mechanizmów pozwala wykorzystać zalety technologii LoRa, takie jak duży zasięg i niewielkie zapotrzebowanie na energię, przy jednoczesnym tworzeniu rozproszonych i odpornych na awarie sieci komunikacyjnych.
+    
+    \section{Popularne rozwiązania LoRa Mesh}
+    Rozwój praktycznych rozwiązań wykorzystujących sieci LoRa Mesh w ostatnich latach doprowadził do powstania kilku otwartych projektów, które umożliwiają budowę zdecentralizowanych sieci komunikacyjnych bez wykorzystania infrastruktury operatorów telekomunikacyjnych. Do najpopularniejszych współczesnych rozwiązań należą przede wszystkim Meshtastic oraz MeshCore.
+    
+    Meshtastic jest otwartym projektem rozwijanym z myślą o komunikacji poza zasięgiem tradycyjnych sieci telekomunikacyjnych. Wykorzystuje urządzenia wyposażone w moduły LoRa do tworzenia zdecentralizowanej sieci, w której węzły mogą przekazywać informacje pomiędzy sobą. System umożliwia między innymi przesyłanie krótkich wiadomości tekstowych, informacji o położeniu oraz danych telemetrycznych. Istotną cechą rozwiązania jest możliwość korzystania z sieci bez dostępu do Internetu, sieci komórkowej lub innych elementów infrastruktury zewnętrznej.
+    
+    Drugim rozwijanym rozwiązaniem jest MeshCore, które koncentruje się na budowie zdecentralizowanej infrastruktury komunikacyjnej wykorzystującej LoRa. W architekturze MeshCore występują między innymi urządzenia użytkowników oraz węzły pełniące funkcję przekaźników, umożliwiające zwiększenie zasięgu sieci poprzez wielokrotne przekazywanie danych. Projekt rozwija również rozwiązania pozwalające na pracę urządzeń jako samodzielnych komunikatorów oraz integrację z aplikacjami działającymi na komputerach i urządzeniach mobilnych.
+    
+    Oba rozwiązania wykorzystują tę samą podstawową technologię transmisji radiowej, jednak różnią się zastosowanymi mechanizmami warstwy logicznej, sposobem przekazywania pakietów oraz organizacją poszczególnych rodzajów węzłów. Z tego względu stanowią interesujący materiał do analizy i porównania sposobów realizacji komunikacji typu mesh z wykorzystaniem technologii LoRa. W dalszej części pracy przedstawiono wybrane mechanizmy obu rozwiązań, ze szczególnym uwzględnieniem funkcjonowania ich warstwy logicznej.
+    
+    \section{Podstawowe zasady działania routingu w sieciach Meshtastic}
+
+    Routing w sieci Meshtastic opiera się na zdecentralizowanym przekazywaniu pakietów pomiędzy znajdującymi się w swoim zasięgu węzłami. W przeciwieństwie do klasycznych sieci, w których stosuję się topologię gwiazdy (np. w LoraWAN), w Meshtastic poszczególne urządzenia samodzielnie podejmują decyzję o przekazaniu odebranego pakietu. Pozwala to na tworzenie sieci, których działanie nie jest uzależnione od pojedynczego punktu infrastruktury.
+    
+    Węzeł wysyłający wiadomość nie musi znajdować się bezpośrednio w zasięgu urządzenia docelowego. Pakiet może zostać przekazany przez kolejne węzły, dzięki czemu komunikacja jest możliwa również pomiędzy urządzeniami oddalonymi od siebie o więcej niż jeden skok (ang. \textit{hop}). Liczba możliwych przekazań pakietu jest ograniczana za pomocą mechanizmu TTL (ang. \textit{Time To Live}), który zapobiega nieograniczonemu krążeniu pakietów w sieci.
+    
+    Istotnym elementem routingu Meshtastic jest mechanizm zarządzania retransmisjami. Węzły mogą przekazywać odebrane pakiety dalej, jednak nie każdy odebrany pakiet musi zostać ponownie wysłany. Decyzja o retransmisji zależy między innymi od rodzaju pakietu, jego parametrów oraz informacji posiadanych przez dany węzeł. Wykorzystywane są również mechanizmy pozwalające ograniczyć wielokrotne przekazywanie tego samego pakietu przez różne węzły.
+    
+    Aby zoptymalizować przekazywanie pakietów i tworzenie infrastruktury do sieci Meshtastic wprowadzano mechanizm ról. Są one przypisywane poszczególnym węzłom i wpływają na sposób przekazywania pakietów.
+\begin{longtable}{|p{2.3cm}|p{6.7cm}|p{6.7cm}|}
+\caption{Porównanie ról w sieci Meshtastic \cite{meshtastic_device}}
+    \label{tabela1}\\
+    \hline
+    \textbf{Rola} & \textbf{Sposób działania} & \textbf{Zastosowanie} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{Rola} & \textbf{Sposób działania} & \textbf{Zastosowanie} \\
+    \hline
+    \endhead
+    CLIENT &
+    Urządzenie z połączoną aplikacją lub samodzielne urządzenie do przesyłania wiadomości. Retransmituje pakiety, jeżeli wcześniej nie zrobił tego żaden inny węzeł. &
+    Ogólne zastosowanie dla użytkowników komunikujących się za pośrednictwem sieci Meshtastic, z obsługą aplikacji klienckich. \\
+    \hline
+    CLIENT\_MUTE &
+    Urządzenie nie przekazuje pakietów pochodzących od innych urządzeń. &
+    Udział w sieci bez wspierania routingu pakietów, co pozwala ograniczyć obciążenie sieci. \\
+    \hline
+    CLIENT\_HIDDEN &
+    Urządzenie nadaje pakiety tylko wtedy, gdy jest to konieczne, ograniczając swoją widoczność oraz zużycie energii. &
+    Zastosowania wymagające ograniczenia widoczności urządzenia lub zużycia czasu antenowego i energii. \\
+    \hline
+    CLIENT\_BASE &
+    Osobista stacja bazowa, która zawsze retransmituje pakiety pochodzące od lub przeznaczone dla obserwowanych węzłów. Pozostałe pakiety obsługuje jak urządzenie CLIENT. &
+    Stacje bazowe umieszczone w korzystnych lokalizacjach, np. na poddaszu lub dachu, w celu zwiększenia zasięgu własnych urządzeń. \\
+    \hline
+    ROUTER &
+    Węzeł infrastrukturalny zwiększający zasięg sieci poprzez jednokrotną retransmisję każdego pakietu. Jest widoczny na liście węzłów. &
+    Umieszczany w strategicznych lokalizacjach w celu zwiększenia zasięgu sieci. Jest prezentowany w topologii. \\
+    \hline
+    ROUTER\_LATE &
+    Węzeł infrastrukturalny, który retransmituje pakiet jednokrotnie, ale dopiero po pozostałych węzłach. Pozwala zapewnić dodatkowe pokrycie lokalnych skupisk urządzeń. &
+    Stosowany do pokrywania obszarów pozbawionych zasięgu lub zwiększenia niezawodności komunikacji w lokalnych skupiskach węzłów. \\
+    \hline
+\end{longtable}
+
+\section{Problemy związane z symulacją warstwy logicznej sieci LoRa Mesh}
+
+Symulacja warstwy logicznej sieci LoRa Mesh wiąże się z koniecznością odwzorowania zarówno struktury sieci, jak i mechanizmów odpowiedzialnych za przekazywanie pakietów pomiędzy węzłami. Jednym z podstawowych problemów jest dynamiczny charakter sieci, w której dostępność poszczególnych połączeń zależy od zasięgu radiowego, położenia urządzeń oraz aktualnych warunków propagacyjnych.
+
+Istotnym wyzwaniem jest również odwzorowanie mechanizmów routingu i retransmisji. W rzeczywistym systemie wiele węzłów może odebrać ten sam pakiet i podjąć decyzję o jego dalszym przekazaniu. Symulator musi zatem uwzględniać ograniczenia liczby retransmisji, czas życia pakietów oraz możliwość występowania duplikatów. Pominięcie tych mechanizmów może prowadzić do wyników znacząco odbiegających od zachowania rzeczywistej sieci.
+
+Kolejnym problemem jest modelowanie współdzielenia kanału radiowego. Urządzenia LoRa korzystają ze wspólnego medium, dlatego jednoczesne transmisje mogą prowadzić do kolizji i utraty pakietów. Dokładne odwzorowanie tego zjawiska wymaga uwzględnienia parametrów transmisji, czasu zajęcia kanału oraz wzajemnego oddziaływania nadających węzłów.
+
+Złożoność symulacji rośnie wraz z liczbą węzłów oraz liczbą możliwych ścieżek pomiędzy nimi. Z tego względu istotnym elementem projektowanego modelu jest zachowanie odpowiedniego kompromisu pomiędzy dokładnością odwzorowania rzeczywistej sieci a czasem wykonywania symulacji.
+
+Ponadto sam protokół dynamicznie się zmienia co powoduje, że w realnych zastosowaniach węzły mogą mieć różne wersje standardu i sposobu działania co tworzy kolejne utrudnienia.
+
+\section{Symulacja węzła z użyciem MeshtasticD}
+MeshtasticD jest natywnym programem binarnym służącym do uruchamiania Meshtastic na urządzeniach wyposażonych w radiomodemy komunikujące się za pośrednictwem interfejsu SPI lub USB. Jest dostępny dla systemów macOS oraz Linux. Dzięki wykorzystaniu modułu simradio można uruchomić program bez potrzeby posiadania fizycznego radiomodułu, dzięki czemu symulację działania pojedynczego węzła można uruchomić w izolowanym środowisku np. z użyciem kontenera Docker.
+
+\chapter{Implementacja symulatora} 
+
+    
+    \cleardoublepage
+    
+
+
+    %-----------------------------------------------------------------------------------
+    %                            BIBLIOGRAFIA
+    %-----------------------------------------------------------------------------------
+    \begin{thebibliography}{3}
+    \addcontentsline{toc}{chapter}{Bibliografia}
+    \bibitem{oughton2020} E. Oughton, T. Russell, J. Johnson, C. Yardim, J. Kusuma, „itmlogic: The Irregular Terrain Model by Longley and Rice”, \emph{Journal of Open Source Software}, vol. 5, nr 2266, 2020, doi: 10.21105/joss.02266.
+    \bibitem{meshtastic_device} Meshtastic, \emph{Device Configuration}. Dostępne online: \url{https://meshtastic.org/docs/configuration/radio/device/} [dostęp: 03.09.2026].
+	\end{thebibliography}
+    \cleardoublepage
+
+    %-----------------------------------------------------------------------------------
+    %                            SPISY RYSUNKÓW/TABEL
+    %-----------------------------------------------------------------------------------
+    %\renewcommand{\listfigurename}{\LARGE Spis rysunków}
+    %\addcontentsline{toc}{chapter}{Spis rysunków}
+    %\listoffigures
+    %\cleardoublepage
+
+    %\renewcommand{\listtablename}{\LARGE Spis tabel}
+    %\addcontentsline{toc}{chapter}{Spis tabel}
+    %\listoftables
+    %\cleardoublepage
+
+    %-----------------------------------------------------------------------------------
+    %                            DODATKI/ANEKSY
+    %-----------------------------------------------------------------------------------
+	
+
+    \begin{landscape}	
+        \begin{table}[hbt!]
+        \section*{Dodatek A. Pozioma tabela}
+        \addcontentsline{toc}{chapter}{Dodatek A}
+        \caption{Pozioma tabela}
+		\begin{tabularx}{24.5cm}[h]{c|c c c c c c c c c c c*{5}Y}	
+			\hline
+			\diagbox{$k$}{$n$} & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11& 12& 13& 14& 15\\
+			\hline
+			$1$ & 0& \textcolor{red}{1}& \textcolor{red}{1}& \textcolor{red}{2}& \textcolor{red}{3}& \textcolor{red}{5}& \textcolor{red}{8}& \textcolor{red}{13}& \textcolor{red}{21}& \textcolor{red}{34}& \textcolor{red}{55}& \textcolor{red}{89}& \textcolor{red}{144}&\textcolor{red}{233}& \textcolor{red}{377}& \textcolor{red}{610}\\
+			\hline
+			$2$  & \textcolor{orange}{0}&	\textcolor{orange}{1}&	\textcolor{orange}{2}&	\textcolor{orange}{5}&	\textcolor{orange}{12}&	\textcolor{orange}{29}&	\textcolor{orange}{70}&	\textcolor{orange}{169}&	\textcolor{orange}{408}&	\textcolor{orange}{985}&	\textcolor{orange}{2378} & \textcolor{orange}{5741}& \textcolor{orange}{13860} & \textcolor{orange}{33461}& \textcolor{orange}{80782}& \textcolor{orange}{195025}\\
+			\hline
+		\end{tabularx}
+        \label{tab:pozioma}
+        \end{table}
+	\end{landscape}
+    
+
+    %-----------------------------------------------------------------------------------
+    %                            STRESZCZENIA
+    %-----------------------------------------------------------------------------------
+	
+
+    \cleardoublepage
+	\include{Streszczenie}
+    \thispagestyle{empty}
+
+    %-----------------------------------------------------------------------------------
+    %                            TABELA GENAI
+    %-----------------------------------------------------------------------------------
+    \cleardoublepage
+	\include{tabela_genai} %obowiązkowe dla studentów wybierających tematy od semestru letniego 2024/2025, pozostali mogą usunąć
+	
+	\end{document}
+
+	
