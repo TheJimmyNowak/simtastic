@@ -6,6 +6,7 @@ import pytest
 from app.models.environment import EnvironmentConfig
 from app.models.node import NodeConfig
 from app.services.propagation.itm_p2p import compute_path_loss_db
+from app.services.propagation.itm_precompute import _pair_task
 from app.services.propagation.link_matrix import build_connectivity_map
 from app.services.propagation.srtm_profile import build_terrain_profile
 from app.config import settings
@@ -62,3 +63,18 @@ def test_connectivity_map() -> None:
     neighbors = build_connectivity_map(ids, rssi, -130.0)
     assert "b" in neighbors["a"]
     assert "c" not in neighbors["a"]
+
+
+def test_colocated_nodes_get_finite_path_loss() -> None:
+    # Węzły z pozycją skwantowaną przez precision_bits często mają identyczne współrzędne.
+    a = NodeConfig(id="a", lat=52.2297, lon=21.0122, agl_m=2.0)
+    b = NodeConfig(id="b", lat=52.2297, lon=21.0122, agl_m=2.0)
+    env = EnvironmentConfig(building_model_enabled=False)
+    result = _pair_task(
+        str(settings.srtm_cache_dir), None, env.model_dump(), 0, 1,
+        a.model_dump(), b.model_dump(), None, None,
+    )
+    assert result.distance_m == 0
+    # Strata wolnej przestrzeni na minimalnym dystansie 1 m przy 869,5 MHz.
+    assert result.terrain_loss_ij_db == pytest.approx(31.2, abs=0.1)
+    assert result.terrain_loss_ji_db == pytest.approx(31.2, abs=0.1)

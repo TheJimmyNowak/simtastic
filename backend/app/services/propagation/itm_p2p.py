@@ -9,6 +9,10 @@ from itmlogic.preparatory_subroutines.qlrpfl import qlrpfl
 from itmlogic.statistics.avar import avar
 
 _DB_PER_NEPER = 8.685890
+# Węzły o tych samych współrzędnych (np. pozycje skwantowane przez precision_bits) dają
+# dystans 0, przy którym itmlogic dzieli przez zero. Poniżej 1 m ITM i tak sprowadza się
+# do straty wolnej przestrzeni, która dla d < 1 m wychodzi niefizycznie ujemna.
+MIN_PATH_DISTANCE_KM = 0.001
 
 
 def compute_path_loss_db(
@@ -31,6 +35,7 @@ def compute_path_loss_db(
     samples = len(surface_profile_m) - 1
     if samples < 1:
         raise ValueError("terrain profile needs at least two samples")
+    distance_km = max(distance_km, MIN_PATH_DISTANCE_KM)
     prop: dict[str, Any] = {
         "eps": 15,
         "sgm": 0.005,

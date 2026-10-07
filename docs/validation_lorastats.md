@@ -123,9 +123,10 @@ raportuje jej środek, porównanie strat ITM dla pozycji raportowanej i prawdziw
 Węzły z domyślną precyzją kanału (13 bitów) nie nadają się do walidacji modelu łączy;
 od ok. 19 bitów błąd pozycji jest mniejszy od rozrzutu fadingu.
 
-**Znaleziony błąd**: dwa węzły o identycznych współrzędnych (częste przy kwantyzacji)
-dają dystans 0 i `ZeroDivisionError` w `itmlogic` (`hzns`) — precompute całego
-scenariusza się nie powiedzie. `itm_precompute._pair_task` nie ma zabezpieczenia.
+**Znaleziony błąd (naprawiony)**: dwa węzły o identycznych współrzędnych (częste przy
+kwantyzacji) dawały dystans 0 i `ZeroDivisionError` w `itmlogic` (`hzns`), przez co nie
+udawał się precompute całego scenariusza. `compute_path_loss_db` przyjmuje teraz
+minimalny dystans 1 m (strata wolnej przestrzeni ok. 31 dB przy 869,5 MHz).
 
 ## Wyniki: routing (częściowe)
 
