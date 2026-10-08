@@ -12,6 +12,8 @@ dynamic = ["dependencies"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "httpx>=0.27"]
+# scripts/validation: dekodowanie zrzutu lorastats, statystyki, rysunki do pracy.
+validation = ["httpx>=0.27", "cryptography>=42", "scipy>=1.11", "matplotlib>=3.8"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["backend/requirements.txt"] }
