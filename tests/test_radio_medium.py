@@ -78,3 +78,36 @@ def test_weak_packet_and_cad() -> None:
     assert m.busy_until("b", 0.2) is None
     assert m.busy_until("c", 0.2) == pytest.approx(0.4)
     assert m.busy_until("c", 0.5) is None
+
+
+def test_cad_respects_transmission_deferred_to_later() -> None:
+    m = medium()
+    on_air = m.place("a", 1, 0.0, 0.4, {"b": -100.0, "c": -100.0}, lambda: 0.05)
+    # b słyszy a i odracza nadanie za jego koniec (+ backoff).
+    deferred = m.place("b", 2, 0.1, 0.4, {"a": -100.0, "c": -100.0}, lambda: 0.05)
+    assert deferred.start == pytest.approx(0.45)
+    # c zgłasza pakiet, gdy a już skończył, a b jeszcze nie zaczął: nie może wejść na b.
+    late = m.place("c", 3, 0.40, 0.4, {"a": -100.0, "b": -100.0}, lambda: 0.05)
+    assert late.start >= deferred.end
+    assert m.outcome(deferred, "a") == OUTCOME_OK
+    assert m.outcome(late, "a") == OUTCOME_OK
+    assert on_air.end <= deferred.start
+
+
+def test_node_does_not_overlap_its_own_deferred_packet() -> None:
+    m = medium()
+    m.place("a", 1, 0.0, 0.4, {"b": -100.0}, lambda: 0.05)
+    first = m.place("b", 2, 0.1, 0.4, {"a": -100.0}, lambda: 0.05)  # odroczony do 0,45
+    # Firmware b zgłasza następny pakiet, zanim odroczony się skończył.
+    second = m.place("b", 3, 0.5, 0.4, {"a": -100.0}, lambda: 0.05)
+    assert second.start >= first.end
+
+
+def test_transmissions_starting_in_same_cad_slot_collide() -> None:
+    m = medium()
+    a = m.place("a", 1, 0.0, 0.4, {"b": -100.0, "c": -100.0}, lambda: 0.05)
+    # c sprawdza kanał 5 ms po starcie a — krócej niż slot CAD, więc nie wykrywa a.
+    c = m.place("c", 2, 0.005, 0.4, {"a": -100.0, "b": -100.0}, lambda: 0.05)
+    assert c.start == pytest.approx(0.005)
+    assert m.outcome(a, "b") == OUTCOME_COLLISION
+    assert m.outcome(c, "b") == OUTCOME_COLLISION

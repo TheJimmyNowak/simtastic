@@ -81,8 +81,13 @@ Model za Borem i in. (MSWiM '16, LoRaSim), moduł `app.services.radio_medium`:
 4. **CAD**: prawdziwe radio (SX126x) przed nadaniem po losowym opóźnieniu z okna rywalizacji
    wykonuje CAD i przy zajętym kanale losuje opóźnienie ponownie. `SimRadio` tego nie robi
    (kanał nigdy nie jest „zajęty”), więc gateway przesuwa start transmisji węzła, który słyszy
-   trwający sygnał (RSSI ≥ czułość), za jego koniec plus losowe `0…2^CWmin − 1` slotów
-   (CWmin = 3, slot = 2,5 symbolu + 7,6 ms, jak `RadioInterface::getTxDelayMsec`).
+   sygnał nakładający się na planowany czas nadawania (RSSI ≥ czułość), za jego koniec plus
+   losowe `0…2^CWmin − 1` slotów (CWmin = 3, slot = 2,5 symbolu + 7,6 ms, jak
+   `RadioInterface::getTxDelayMsec`) — również sygnał już odroczony na później, bo jego węzeł
+   zrobi CAD w chwili startu. CAD nie wykrywa transmisji startującej bliżej niż jeden slot
+   (oba węzły widzą wolny kanał i kolidują). Własna, trwająca transmisja węzła zawsze blokuje
+   jego radio: firmware zgłasza kolejny pakiet, nie wiedząc, że poprzedni został odroczony.
+   Sprawdzenie i rejestracja transmisji są atomowe (`RadioMedium.place`).
 5. Przyczyna utraty trafia do `link_attempt` (tag `loss_reason`) i do widoku pakietów.
 
 Weryfikacja na `meshtasticd` (ukryty węzeł: A i C się nie słyszą, u B różnica mocy 5,7 dB,

@@ -156,6 +156,8 @@ def test_cad_defers_transmission_of_node_hearing_the_channel() -> None:
     gw, ifaces = line_gateway()
     gw.configure_medium(collisions_enabled=True, capture_threshold_db=6.0)
     gw._on_mesh_packet(sim_tx_packet(packet_id=31, origin_hw=HW_ID_OFFSET, hop_limit=3), ifaces["a"])
+    # Dłużej niż slot CAD: B sprawdza kanał, gdy pakiet A jest już wykrywalny.
+    time.sleep(gw._medium.cad_window_s + 0.02)
     gw._on_mesh_packet(sim_tx_packet(packet_id=32, origin_hw=HW_ID_OFFSET + 1, hop_limit=3), ifaces["b"])
     time.sleep(1.5)
     gw.stop()

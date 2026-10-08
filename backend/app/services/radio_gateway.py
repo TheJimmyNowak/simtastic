@@ -306,20 +306,20 @@ class RadioGateway:
             lora.coding_rate,
         )
         slot = slot_time_s(lora.spreading_factor, lora.bandwidth_khz)
-        start = time.monotonic()
-        # SimRadio nie wykonuje CAD; prawdziwy węzeł odczekałby losowo i sprawdził ponownie.
-        while (busy_end := self._medium.busy_until(tx_id, start)) is not None:
+
+        def backoff() -> float:
             with self._rng_lock:
-                start = busy_end + self._rng.randrange(2 ** CW_MIN) * slot
-        transmission = Transmission(
-            tx_id=tx_id,
-            packet_id=packet_id,
-            start=start,
-            end=start + airtime,
-            rssi_at={a.rx_node: a.rssi_db for a in attempts},
+                return self._rng.randrange(2 ** CW_MIN) * slot
+
+        # SimRadio nie wykonuje CAD; prawdziwy węzeł odczekałby losowo i sprawdził ponownie.
+        return self._medium.place(
+            tx_id,
+            packet_id,
+            time.monotonic(),
+            airtime,
+            {a.rx_node: a.rssi_db for a in attempts},
+            backoff,
         )
-        self._medium.add(transmission)
-        return transmission
 
     def _resolve_reception(
         self,

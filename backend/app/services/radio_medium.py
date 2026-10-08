@@ -21,6 +21,7 @@ from __future__ import annotations
 import math
 import threading
 from dataclasses import dataclass, field
+from typing import Callable
 
 # Firmware Meshtastic: RadioInterface::preambleLength i nagłówek PacketHeader (16 B).
 PREAMBLE_SYMBOLS = 16
@@ -97,24 +98,66 @@ class RadioMedium:
             spreading_factor, bandwidth_khz
         )
         self.history_s = history_s
+        # CAD trwa ułamek slotu: transmisja, która zaczęła się krócej niż slot temu (albo
+        # zacznie się w tym samym slocie), nie jest jeszcze wykrywalna — dwa węzły
+        # sprawdzające kanał w tym samym slocie nadają oba i kolidują.
+        self.cad_window_s = slot_time_s(spreading_factor, bandwidth_khz)
         self._air: list[Transmission] = []
         self._lock = threading.Lock()
 
-    def busy_until(self, node_id: str, t: float) -> float | None:
-        """Koniec sygnału, który węzeł wykryłby przez CAD w chwili t (None = kanał wolny)."""
+    def busy_until(self, node_id: str, t: float, end: float | None = None) -> float | None:
+        """Koniec sygnału słyszalnego przez węzeł w chwili t (None = kanał wolny).
+
+        Z `end` sprawdza cały przedział [t, end): także transmisje już zaplanowane na
+        później (odroczone przez CAD) — ich węzły zrobią CAD w chwili startu i nie
+        nadadzą w trakcie cudzego pakietu, więc nowy pakiet nie może na nie wejść.
+        Wyjątkiem są transmisje startujące w odstępie krótszym niż slot CAD.
+        """
         with self._lock:
-            ends = [
-                tx.end
-                for tx in self._air
-                if tx.start <= t < tx.end and tx.rssi_at.get(node_id, -math.inf) >= self.sensitivity_dbm
-            ]
+            return self._busy_until_locked(node_id, t, end)
+
+    def _busy_until_locked(self, node_id: str, t: float, end: float | None) -> float | None:
+        # Zajęte jest też własne radio węzła: firmware zgłasza kolejny pakiet, nie wiedząc,
+        # że poprzedni został odroczony przez emulację CAD i jeszcze trwa.
+        ends = []
+        for tx in self._air:
+            if not (tx.start <= t < tx.end if end is None else tx.start < end and t < tx.end):
+                continue
+            if tx.tx_id == node_id:
+                ends.append(tx.end)
+            elif tx.rssi_at.get(node_id, -math.inf) >= self.sensitivity_dbm and (
+                end is None or abs(tx.start - t) >= self.cad_window_s
+            ):
+                ends.append(tx.end)
         return max(ends) if ends else None
 
     def add(self, transmission: Transmission) -> None:
         with self._lock:
-            horizon = transmission.start - self.history_s
-            self._air = [tx for tx in self._air if tx.end >= horizon]
-            self._air.append(transmission)
+            self._add_locked(transmission)
+
+    def _add_locked(self, transmission: Transmission) -> None:
+        horizon = transmission.start - self.history_s
+        self._air = [tx for tx in self._air if tx.end >= horizon]
+        self._air.append(transmission)
+
+    def place(
+        self,
+        tx_id: str,
+        packet_id: int,
+        start: float,
+        airtime: float,
+        rssi_at: dict[str, float],
+        backoff: Callable[[], float],
+    ) -> Transmission:
+        """Emulacja CAD: przesuwa start za słyszalne transmisje (o `backoff()` po każdej)
+        i rejestruje pakiet. Sprawdzenie i rejestracja są atomowe — zgłoszenia z wątków
+        różnych węzłów nie mogą jednocześnie uznać kanału za wolny."""
+        with self._lock:
+            while (busy_end := self._busy_until_locked(tx_id, start, start + airtime)) is not None:
+                start = busy_end + backoff()
+            transmission = Transmission(tx_id, packet_id, start, start + airtime, rssi_at)
+            self._add_locked(transmission)
+        return transmission
 
     def outcome(self, transmission: Transmission, rx_id: str) -> str:
         """Wynik odbioru `transmission` przez `rx_id` po jej zakończeniu."""
