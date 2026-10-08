@@ -48,7 +48,7 @@ plt.rcParams.update(
 
 def save(fig, name: str) -> None:
     # Przecinek dziesiętny na osiach liczbowych (bez zależności od locale systemu).
-    comma = matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}".replace(".", ","))
+    comma = matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}".replace(".", ",").replace("-", "−"))
     for ax in fig.axes:
         for axis in (ax.xaxis, ax.yaxis):
             if isinstance(axis.get_major_formatter(), matplotlib.ticker.ScalarFormatter):
@@ -163,6 +163,31 @@ def medium(report: dict) -> None:
     save(fig, "t5_medium")
 
 
+def sweep(report: dict) -> None:
+    """T6: metryki routingu w funkcji straty otoczenia (σ cieniowania 20 dB), średnia ± SD seedów."""
+    ps = report["routing"]["per_seed"]
+    points = [(int(v[4:]), v) for v in ps if v.startswith("clut")] + ([(27, "cal")] if "cal" in ps else [])
+    points.sort()
+    if len(points) < 2:
+        return
+    x = [c for c, _ in points]
+    fig, axes = plt.subplots(1, 2, figsize=(6.4, 2.8))
+    for ax, key, label, ref in (
+        (axes[0], "mode_agreement", "zgodność trybu\n(bezpośrednio / przez pośrednika)", None),
+        (axes[1], "hop_bias", "różnica liczby skoków\n(symulacja − sieć)", 0.0),
+    ):
+        mean = [ps[v][key]["mean"] for _, v in points]
+        sd = [ps[v][key]["sd"] for _, v in points]
+        ax.errorbar(x, mean, yerr=sd, color=ORANGE, marker="s", ms=6, capsize=3, lw=1.5)
+        if ref is not None:
+            ax.axhline(ref, color=NEUTRAL, lw=1, ls="--")
+        ax.set_xlabel("strata otoczenia [dB]")
+        ax.set_ylabel(label)
+        ax.set_xticks(x)
+    fig.tight_layout()
+    save(fig, "t6_strata_otoczenia")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("links", type=Path)
@@ -175,6 +200,7 @@ def main() -> None:
         report = json.loads(args.report.read_text(encoding="utf-8"))
         hops(report)
         medium(report)
+        sweep(report)
 
 
 if __name__ == "__main__":
