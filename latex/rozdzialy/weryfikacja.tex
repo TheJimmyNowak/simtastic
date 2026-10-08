@@ -1,15 +1,19 @@
-\chapter{Weryfikacja symulatora na danych z działającej sieci}
+\chapter{Weryfikacja symulatora}
 \label{chap:weryfikacja}
 
-Symulator może działać bez zarzutu i nadal kłamać. Najprostszy sposób, żeby to wyłapać, to porównać go z prawdziwą siecią. W Polsce jest to możliwe dzięki serwisowi lorastats.pl \cite{lorastats}. Zbiera on pakiety polskiej sieci Meshtastic odebrane przez bramki MQTT, czyli węzły, które poza radiem mają też dostęp do internetu i przesyłają dalej wszystko, co usłyszą. Udostępnia je przez API z ostatnich 24 godzin.
+Poprawne działanie programu nie oznacza jeszcze, że jego wyniki odpowiadają rzeczywistości. Z tego względu symulator został porównany z działającą siecią Meshtastic. Weryfikacja składa się z trzech części. Pierwszą jest kalibracja modelu łączy na danych z sieci rzeczywistej. Drugą jest ocena modelu łączy oraz routingu na niezależnym zbiorze danych, zarejestrowanym po wykonaniu kalibracji. Trzecią są testy samego symulatora: poprawności modelu współdzielenia kanału, powtarzalności wyników oraz skalowalności.
 
-\section{Dane}
+\section{Źródło danych}
 
-Z API pobrane zostały cztery zbiory dla wszystkich regionów serwisu: listy węzłów, zdekodowane pakiety, surowe pakiety oraz raporty odbioru. Raport odbioru mówi, która bramka usłyszała który pakiet, z jaką mocą i SNR, ile skoków zostało pakietowi i który węzeł nadał go ostatni. Łącznie to około 1,07 miliona raportów od 360 bramek z 6 i 7 października 2026 roku.
+Źródłem danych o rzeczywistej sieci jest serwis lorastats.pl \cite{lorastats}. Serwis zbiera pakiety polskiej sieci Meshtastic odbierane przez bramki MQTT, czyli węzły, które oprócz modułu radiowego posiadają dostęp do internetu i przekazują do serwera odebrane pakiety. Dane z ostatnich 24 godzin udostępniane są przez interfejs API w podziale na regiony. Dla każdego regionu pobierane są cztery zbiory: lista węzłów, zdekodowane pakiety, surowe pakiety w postaci odebranej przez radio oraz raporty odbioru. Raport odbioru informuje, która bramka odebrała dany pakiet, z jaką mocą i SNR, jaka była pozostała wartość limitu skoków oraz który węzeł nadał pakiet jako ostatni.
 
-Najwięcej kłopotu sprawiły pozycje węzłów. Meshtastic pozwala ograniczyć dokładność rozgłaszanej pozycji \cite{meshtastic_protobufs}. Węzeł ustawia liczbę bitów precyzji, a pozycja jest zaokrąglana do środka komórki siatki o boku \(2^{32-b} \cdot 10^{-7}\) stopnia. Przy domyślnych dla kanału publicznego 13 bitach komórka ma około 5,8 km. Z 1389 węzłów z pozycją tylko 258 podawało ją z pełną precyzją. Pozostałe są w pewnym sensie celowo rozmyte.
+Surowe pakiety dekodowane są zgodnie z definicjami protokołu Meshtastic. Pakiety zaszyfrowane domyślnym kluczem kanału publicznego są odszyfrowywane algorytmem AES-128 w trybie CTR, w taki sam sposób, w jaki robi to oprogramowanie węzłów. Pozwala to odczytać pozycje węzłów, listy sąsiadów rozgłaszane w pakietach \texttt{NEIGHBORINFO\_APP} oraz wartość \texttt{hop\_start}, czyli początkowy limit skoków pakietu. Preset modemu, na którym pracuje dany węzeł, wyznaczany jest na podstawie skrótu nazwy kanału zapisanego w zaszyfrowanych pakietach. Każdy preset kanału publicznego ma inną wartość skrótu, na przykład 31 dla MediumFast, 8 dla LongFast, 112 dla ShortFast i 119 dla ShortSlow.
 
-Jak bardzo to przeszkadza, pokazuje prosty eksperyment. Dla 25 par węzłów prawdziwe położenie losowane jest wewnątrz komórki siatki, a następnie porównywana jest strata ITM dla pozycji prawdziwej i dla tej, którą węzeł by rozgłosił. Wyniki są w tabeli~\ref{tab:precyzja}.
+\section{Precyzja pozycji węzłów}
+
+Do odtworzenia sieci w symulatorze niezbędne są dokładne pozycje węzłów. Meshtastic pozwala jednak ograniczyć dokładność rozgłaszanej pozycji \cite{meshtastic_protobufs}. Węzeł ustawia liczbę bitów precyzji \(b\), a jego pozycja zaokrąglana jest do środka komórki siatki o boku \(2^{32-b} \cdot 10^{-7}\) stopnia. Przy domyślnej dla kanału publicznego wartości 13 bitów bok komórki wynosi około 5,8 km.
+
+Wpływ ograniczonej precyzji na wyniki modelu łączy oszacowano metodą Monte Carlo. Dla 25 par węzłów rzeczywiste położenie losowane było wewnątrz komórki siatki, a następnie porównywana była strata ITM wyznaczona dla położenia rzeczywistego i dla położenia rozgłaszanego przez węzeł. Wyniki przedstawiono w tabeli~\ref{tab:precyzja}.
 
 \begin{table}[ht]
 \centering
@@ -29,36 +33,43 @@ Jak bardzo to przeszkadza, pokazuje prosty eksperyment. Dla 25 par węzłów pra
 \end{tabular}
 \end{table}
 
-Przy 13 bitach błąd jest większy niż cały fading. Takie węzły nie nadają się do sprawdzania modelu łączy. Dopiero od mniej więcej 19 bitów błąd pozycji przestaje mieć znaczenie. Przy okazji wyszedł błąd w symulatorze. Dwa węzły z zaokrągloną pozycją często lądują w tym samym punkcie, a dla odległości zero biblioteka itmlogic dzieliła przez zero i cały scenariusz nie dawał się policzyć. Teraz odległość jest ograniczona od dołu do jednego metra.
+Przy 13 bitach błąd straty jest większy niż zmienność wynikająca z fadingu, dlatego takie węzły nie nadają się do weryfikacji modelu łączy. Dopiero od około 19 bitów błąd pozycji przestaje mieć istotne znaczenie. Do dalszych analiz wybierane są zatem wyłącznie węzły, które we wszystkich raportach podają pozycję z pełną precyzją (32 bity), nie przemieszczają się (rozrzut pozycji poniżej 30 m), znajdują się na terenie Polski i nie mają współrzędnych zaokrąglonych do kilku miejsc po przecinku. Wysokość anteny wyznaczana jest jako różnica rozgłaszanej wysokości i wysokości terenu z danych SRTM, jeżeli wynik mieści się w przedziale od 1,5 do 80 m. W przeciwnym razie przyjmowana jest wysokość 6 m. Należy zaznaczyć, że większość wybranych węzłów ma pozycję wpisaną ręcznie przez użytkownika, dlatego pełna precyzja zapisu nie gwarantuje dokładności samej pozycji.
 
-Do porównań wzięte zostały więc tylko węzły, które we wszystkich raportach podają pozycję z pełną precyzją, nie przemieszczają się i nie mają podejrzanie okrągłych współrzędnych. Zostało ich 149. Trzeba jednak pamiętać, że większość z nich ma pozycję wpisaną ręcznie. Pełna precyzja zapisu nie gwarantuje, że ktoś trafił w swój dach.
+\section{Obserwacje łączy i tras}
 
-\section{Co można zobaczyć w raportach}
+Bramka przekazuje do serwera pierwszą odebraną kopię pakietu. Ponieważ oryginalna transmisja zawsze poprzedza retransmisje, odbiór bezpośredni, jeżeli jest możliwy, jest odbiorem pierwszym. Na tej podstawie dla każdej pary nadawca--bramka wyznaczane są dwa rodzaje obserwacji:
 
-Bramka wysyła do serwera pierwszą kopię pakietu, jaką usłyszy. Oryginalna transmisja jest zawsze pierwsza w czasie. Jeśli więc bramka zgłasza pakiet bez zużytych skoków, a ostatnim nadawcą jest sam autor, to łącze bezpośrednie istnieje. Jeśli natomiast bramka słyszała dany węzeł wiele razy, ale zawsze dopiero po retransmisji, to bezpośredniego łącza najpewniej nie ma.
+\begin{itemize}
+\item \textbf{łącze istnieje} -- bramka odebrała pakiet nadawcy bez zużytych skoków (\texttt{hop\_start} równe \texttt{hop\_limit}), a ostatnim węzłem przekazującym był sam nadawca, albo jeden z węzłów wymienia drugi jako sąsiada w pakiecie \texttt{NEIGHBORINFO\_APP},
+\item \textbf{brak łącza bezpośredniego} -- bramka zaraportowała co najmniej pięć pakietów nadawcy, ale wyłącznie po retransmisji.
+\end{itemize}
 
-Nie każda bramka nadaje się na takiego obserwatora. Część z nich zgłasza każdy pakiet z wyzerowanym licznikiem skoków albo w ogóle nie raportuje odbiorów bezpośrednich. Wygląda to na mostki MQTT, a nie na radio. Takie bramki zostały pominięte, bo ich „brak łącza” nic nie znaczy.
+Pakiety przekazane bez zmniejszenia limitu skoków przez węzeł inny niż nadawca traktowane są jako retransmisje. Takie zachowanie występuje w nowszych wersjach oprogramowania, w których routery nie zmniejszają limitu skoków dla pakietów ulubionych węzłów. Pomijane są pary odległe o mniej niż 200 m (urządzenia w jednym budynku) oraz o więcej niż 60 km, a także bramki, które nie są obserwatorami radiowymi, czyli zgłaszają mniej niż 1\% odbiorów bezpośrednich lub ponad połowę pakietów z wyzerowanym limitem skoków. Ich brak odbioru bezpośredniego nie świadczy o braku łącza.
 
-Z węzłów o pełnej precyzji zbudowanych zostało osiem rozłącznych klastrów, po co najwyżej dziesięć węzłów, w różnych częściach kraju: okolice Zielonej Góry i Nowej Soli, Rzeszów, Lublin, Siedlce, Szczecin, Poznań i Warszawa. Preset każdego klastra wynika z hasha kanału w surowych pakietach. Większość pracuje na MEDIUM\_FAST, zachód kraju na SHORT\_SLOW, a Siedlce na LONG\_FAST. W klastrach jest 87 par nadajnik i bramka z wiarygodną obserwacją. W 31 z nich łącze bezpośrednie istnieje, w 56 nie.
+Dla oceny routingu z tych samych raportów wyznaczany jest rozkład liczby skoków pakietów danej pary (różnica \texttt{hop\_start} i \texttt{hop\_limit}) oraz ostatni węzeł przekazujący. Pole identyfikujące węzeł przekazujący zawiera wyłącznie ostatni bajt jego numeru, dlatego jest on przypisywany do węzła z klastra tylko wtedy, gdy dopasowanie jest jednoznaczne.
 
-\section{Łącza}
+Z wybranych węzłów budowane są rozłączne klastry liczące co najwyżej dziesięć węzłów pracujących na tym samym presecie. Klastry tworzone są zachłannie: rozpoczynając od węzła o największej liczbie obserwacji, do klastra dołączane są kolejno węzły, które mają najwięcej obserwacji z jego dotychczasowymi członkami.
 
-Pierwsza wersja modelu przewidywała łącze prawie wszędzie. Wykrywała 94\% prawdziwych łączy, ale poprawnie odrzucała tylko 36\% par, które w rzeczywistości się nie słyszą. Na parach odległych o 5 do 15 km model widział łącze w 18 przypadkach na 18. W rzeczywistości były cztery. Moc na działających łączach była zawyżona średnio o 13,8 dB.
+\section{Kalibracja modelu łączy}
 
-Sama kolejność łączy była przy tym całkiem dobra. Pole pod krzywą ROC dla marginesu łącza wynosi 0,80. Model więc wie, które łącze jest lepsze, a które gorsze. Myli się co do tego, gdzie leży granica.
+Model fizyczny, obejmujący wyłącznie teren i zabudowę, nie uwzględnia wielu czynników wpływających na rzeczywiste łącza, takich jak roślinność, umieszczenie anteny wewnątrz budynku czy straty w przewodach. Parametry straty otoczenia \(L_{ot}\) i trwałego cieniowania \(\sigma_{\ell}\) ze wzoru~\eqref{eq:pl_sym} zostały dobrane na zbiorze kalibracyjnym obejmującym dane z 6 i 7 października 2026 roku (około 1,07 miliona raportów od 360 bramek). Zbiór zawierał 87 par nadawca--bramka z wiarygodną obserwacją, z czego w 31 parach łącze istniało.
 
-Pierwsze poprawki dotyczyły oczywistych rzeczy: mocy 22 dBm zamiast 27, szumu wyliczanego z pasma i gęstszego profilu terenu. Zawyżenie mocy spadło do 10,1 dB, a błąd SNR z 41 do 12 dB. To wciąż za mało.
+Prawdopodobieństwo odbioru pakietu dla pary węzłów opisano zależnością:
 
-Tu pojawia się ciekawa sprzeczność. Gdy dobiera się samą stałą stratę otoczenia, moc na działających łączach zgadza się najlepiej przy 5 do 10 dB. Odsetek istniejących łączy zgadza się jednak dopiero przy 20 do 30 dB. Rozwiązaniem jest trwałe cieniowanie łącza ze wzoru~\eqref{eq:pl_sym}. Oglądamy tylko te łącza, które działają, a działają głównie te, którym cieniowanie akurat sprzyja. Ich moc jest więc wyższa od mediany modelu i ta selekcja tłumaczy całą rozbieżność. Tabela~\ref{tab:cieniowanie} pokazuje to na liczbach.
+\begin{equation}\label{eq:p_link}
+P(\textrm{łącze}) = \Phi\left(\frac{P_{RX} - L_{ot} - S_{RX}}{\sqrt{\sigma_{\ell}^2 + \sigma^2}}\right)
+\end{equation}
+
+gdzie \(\Phi\) oznacza dystrybuantę standardowego rozkładu normalnego, \(P_{RX}\) medianę mocy odbieranej według modelu fizycznego, a \(\sigma = 8\) dB odchylenie standardowe fadingu. Parametry dobrano metodą największej wiarygodności. Samo dopasowanie odsetka istniejących łączy oraz mocy odbieranej na łączach, które istnieją, prowadzi do pozornie sprzecznych wartości straty otoczenia. Wynika to z efektu selekcji: obserwowane są wyłącznie łącza, które działają, a działają przede wszystkim te, dla których cieniowanie jest korzystne. Moc na takich łączach jest więc wyższa od mediany modelu. Uwzględnienie trwałego cieniowania pozwala odwzorować jednocześnie obie wielkości, co przedstawiono w tabeli~\ref{tab:cieniowanie}.
 
 \begin{table}[ht]
 \centering
-\caption{Zgodność modelu z danymi dla różnych wartości straty otoczenia i cieniowania}
+\caption{Zgodność modelu z danymi kalibracyjnymi dla różnych wartości straty otoczenia i cieniowania}
 \label{tab:cieniowanie}
 \small
 \begin{tabular}{|c|c|c|c|c|}
 \hline
-\(L_{ot}\) [dB] & \(\sigma_{\ell}\) [dB] & \textbf{Błąd mocy (dane)} & \textbf{Błąd mocy (model)} & \textbf{Łącza (model)} \\
+\(L_{ot}\) [dB] & \(\sigma_{\ell}\) [dB] & \shortstack{\textbf{Błąd mocy}\\\textbf{(dane)}} & \shortstack{\textbf{Błąd mocy}\\\textbf{(model)}} & \shortstack{\textbf{Odsetek łączy}\\\textbf{(model)}} \\
 \hline
 10 & 10 & \(+0{,}1\) dB & \(-4{,}9\) dB & 0,58 \\
 20 & 15 & \(-9{,}9\) dB & \(-10{,}2\) dB & 0,46 \\
@@ -68,34 +79,250 @@ Tu pojawia się ciekawa sprzeczność. Gdy dobiera się samą stałą stratę ot
 \end{tabular}
 \end{table}
 
-W danych łącza istnieją w 36\% par. Strata otoczenia od 25 do 30 dB i cieniowanie z odchyleniem około 20 dB oddają jednocześnie i ten odsetek, i moc działających łączy. Dwadzieścia decybeli to dużo więcej niż typowe cieniowanie terenowe, które w literaturze wynosi zwykle od 6 do 12 dB. Ten parametr zbiera jednak wszystko, czego model nie wie o konkretnych instalacjach: prawdziwą wysokość anteny (znaną tylko dla 40 z 72 węzłów w klastrach), dokładność ręcznie wpisanej pozycji, kable i to, czy antena stoi na dachu, czy w pokoju. Część tej zmienności to cecha węzła, a nie łącza. Do opisania jej osobno dla każdego węzła danych jest jednak za mało.
+W zbiorze kalibracyjnym łącza istniały w 36\% par. Odsetek ten oraz moc na istniejących łączach odwzorowuje jednocześnie strata otoczenia od 25 do 30 dB i cieniowanie o odchyleniu około 20 dB. Do dalszych badań przyjęto wartości \(L_{ot} = 27\) dB i \(\sigma_{\ell} = 20\) dB. Wartość cieniowania jest wyższa od typowego cieniowania terenowego, wynoszącego zwykle od 6 do 12 dB, ponieważ parametr ten obejmuje również nieznane cechy poszczególnych instalacji, takie jak rzeczywista wysokość anteny, dokładność ręcznie wpisanej pozycji, jakość przewodów oraz umieszczenie anteny na zewnątrz lub wewnątrz budynku.
 
-\section{Routing}
+\section{Metryki oceny}
 
-Ostatni test jest najbliższy temu, do czego symulator powstał. Pięć klastrów zostało uruchomionych na prawdziwych węzłach \texttt{meshtasticd}, z rolami i limitami skoków odczytanymi z sieci. Każdy węzeł wysłał trzy wiadomości rozgłoszeniowe, a potem traceroute do głównej bramki klastra. Dla każdej wiadomości liczy się pierwszy udany odbiór na bramce: ile skoków zużył pakiet i który węzeł go ostatnio powtórzył. To samo da się odczytać z raportów lorastats.
+Symulator ma charakter stochastyczny, a dane z sieci mają postać obserwacji binarnych oraz rozkładów, dlatego do oceny zastosowano metryki probabilistyczne. Pary obserwowane przez tę samą bramkę lub należące do tego samego klastra nie są od siebie niezależne. Z tego względu przedziały ufności wyznaczane są metodą bootstrap z losowaniem całych grup (bramek lub klastrów), a nie pojedynczych par.
 
-Porównanie dotyczy 72 par nadawca i bramka oraz trzech wariantów modelu łączy. Wariant fizyczny to sam teren i budynki. Dwa warianty skalibrowane mają stratę otoczenia 27 dB, cieniowanie 20 dB i różnią się tylko seedem cieniowania. Wyniki są w tabeli~\ref{tab:routing}. Te przebiegi odbyły się jeszcze bez modelu kolizji.
+Zdolność modelu do odróżniania łączy istniejących od nieistniejących oceniono polem pod krzywą ROC (AUC) dla marginesu łącza \(M\) ze wzoru~\eqref{M}. Wartość AUC równa jest prawdopodobieństwu, że losowo wybrane łącze istniejące ma większy margines niż losowo wybrane łącze nieistniejące. Wartość 1 oznacza idealne uporządkowanie, a wartość 0,5 uporządkowanie losowe. Jakość przewidywanych prawdopodobieństw \(p_i\) oceniono wynikiem Briera:
+
+\begin{equation}\label{eq:brier}
+BS = \frac{1}{n}\sum_{i=1}^{n} (p_i - y_i)^2
+\end{equation}
+
+gdzie \(y_i\) przyjmuje wartość 1 dla łącza istniejącego i 0 w przeciwnym przypadku. Uzupełnieniem są: logarytmiczna funkcja straty, oczekiwany błąd kalibracji (ECE), czyli średnia ważona różnica pomiędzy przewidywanym a obserwowanym odsetkiem łączy w przedziałach prawdopodobieństwa, oraz prosta kalibracji \(\textrm{logit}\,P(y=1) = a + b\cdot\textrm{logit}(p)\). Dla modelu dobrze skalibrowanego \(a = 0\) i \(b = 1\). Ujemna wartość \(a\) oznacza model zbyt optymistyczny, a wartość \(b < 1\) model zbyt pewny swoich przewidywań. Do oceny decyzji binarnych przy progu \(p = 0{,}5\) wykorzystano czułość (TPR), swoistość (TNR), zbalansowaną trafność oraz współczynnik korelacji Matthewsa (MCC). Błąd mocy odbieranej na istniejących łączach opisano średnim błędem, błędem średniokwadratowym (RMSE) i współczynnikiem korelacji rang Spearmana.
+
+Routing oceniono dla par nadawca--bramka na podstawie pierwszego udanego odbioru każdego pakietu nadawcy na bramce. Dla każdej pary wyznaczany jest tryb przekazania, czyli to, czy pakiet dociera zwykle bezpośrednio, czy przez pośrednika, liczba skoków oraz węzeł przekazujący. Zgodność trybu przekazania oceniono odsetkiem zgodnych par oraz współczynnikiem kappa Cohena:
+
+\begin{equation}\label{eq:kappa}
+\kappa = \frac{p_o - p_e}{1 - p_e}
+\end{equation}
+
+gdzie \(p_o\) oznacza obserwowaną zgodność, a \(p_e\) zgodność oczekiwaną przy przypadkowym przydziale. Współczynnik kappa jest szczególnie istotny w przypadku niezrównoważonych klas. Gdy większość par komunikuje się przez pośrednika, nawet model przewidujący zawsze retransmisję osiągnąłby wysoką zgodność, natomiast jego współczynnik kappa byłby bliski zeru. Liczbę skoków oceniono średnią różnicą mody liczby skoków w symulacji i w sieci, średnim błędem bezwzględnym oraz odległością Wassersteina pomiędzy rozkładami liczby skoków, która porównuje całe rozkłady, a nie tylko ich wartości najczęstsze. Różnice pomiędzy wariantami modelu oceniono testem Wilcoxona dla par obserwacji wiązanych, porównując błędy bezwzględne tych samych par węzłów.
+
+\section{Kampania testowa}
+
+Kampania testowa została przeprowadzona na danych pobranych z serwisu lorastats.pl 8 października 2026 roku. Do oceny wykorzystano wyłącznie raporty zarejestrowane od 7 października, godz. 17:35, do 8 października, godz. 8:11, czyli po wykonaniu kalibracji. Zbiór testowy obejmuje około 678 tysięcy raportów odbioru od 357 bramek i jest niezależny w czasie od zbioru kalibracyjnego. Pozycje i parametry węzłów wyznaczono na podstawie pełnych 24 godzin danych, ponieważ są to cechy węzłów, a nie wynik obserwacji łączy.
+
+Kryteria wyboru spełniło 187 węzłów, w tym 17 bramek będących obserwatorami radiowymi. Uzyskano 156 par nadawca--bramka z wiarygodną obserwacją, z czego w 18 parach łącze istniało. Dodatkowo 58 par węzłów wymienia się nawzajem w pakietach \texttt{NEIGHBORINFO\_APP}. Pary te zawierają wyłącznie obserwacje łączy istniejących, dlatego posłużyły tylko do oceny czułości modelu. Z węzłów zbudowano sześć klastrów przedstawionych w tabeli~\ref{tab:klastry}.
 
 \begin{table}[ht]
 \centering
-\caption{Routing w symulacji w porównaniu z siecią rzeczywistą}
-\label{tab:routing}
-\begin{tabular}{|p{6.6cm}|c|c|c|}
+\caption{Klastry wykorzystane w kampanii testowej}
+\label{tab:klastry}
+\small
+\begin{tabular}{|l|l|c|c|c|c|}
 \hline
- & \textbf{Fizyczny} & \textbf{Seed 1} & \textbf{Seed 2} \\
+\textbf{Klaster} & \textbf{Preset} & \textbf{Węzły} & \textbf{Bramki} & \textbf{Pary} & \textbf{Łącza bezpośrednie} \\
 \hline
-Pary osiągnięte w symulacji & 53 & 58 & 44 \\
-Łącza bezpośrednie (symulacja / sieć) & 44 / 12 & 26 / 13 & 24 / 11 \\
-Zgodność: bezpośrednio czy przez pośrednika & 40\% & 67\% & 61\% \\
-Ta sama liczba skoków & 26\% & 33\% & 36\% \\
-Średnia różnica liczby skoków & \(-1{,}45\) & \(-0{,}88\) & \(-0{,}93\) \\
-Ten sam węzeł pośredniczący z klastra & 1 z 1 & 8 z 8 & 3 z 6 \\
+Górny Śląsk & ShortFast & 10 & 1 & 9 & 0 \\
+Warszawa & MediumFast & 10 & 3 & 26 & 1 \\
+Zielona Góra & ShortSlow & 10 & 2 & 18 & 4 \\
+Rzeszów & MediumFast & 10 & 1 & 9 & 2 \\
+Lublin & MediumFast & 10 & 2 & 13 & 1 \\
+Bełchatów & ShortFast & 8 & 2 & 12 & 2 \\
 \hline
 \end{tabular}
 \end{table}
 
-W wariancie fizycznym prawie każdy węzeł słyszy bramkę bezpośrednio. Trasy wychodzą więc o półtora skoku krótsze niż w sieci, a retransmisji praktycznie nie ma czego porównywać. Po kalibracji zgodność co do tego, czy pakiet idzie bezpośrednio, czy przez pośrednika, rośnie z 40\% do ponad 60\%. Gdy w prawdziwej sieci pakiet przekazuje węzeł z klastra, symulacja wskazuje ten sam węzeł w 11 przypadkach na 14.
+Dla każdego klastra utworzono scenariusz z pozycjami, wysokościami anten, rolami i limitami skoków odczytanymi z sieci. Role ROUTER\_LATE odwzorowano jako ROUTER. Dla węzłów znajdujących się w obrysie budynku rozgłaszana wysokość zawiera już wysokość budynku, dlatego maszt liczony jest od dachu. Przebiegi prowadzono przez interfejs REST symulatora, w taki sam sposób, w jaki korzysta z niego użytkownik: utworzenie scenariusza, obliczenie łączy, uruchomienie, zatrzymanie oraz eksport śladu z bazy InfluxDB. Ruch w każdym przebiegu obejmował trzy rundy wiadomości rozgłoszeniowych ze wszystkich węzłów w odstępach 5 s, a następnie zapytania traceroute z każdego węzła do głównej bramki klastra. Przebieg dla dziesięciu węzłów trwał około 5 minut. Odchylenie standardowe fadingu wynosiło 8 dB, a ziarno fadingu i cieniowania było inne w każdym przebiegu.
 
-Część rozbieżności zostanie zawsze. W prawdziwej sieci wiele tras przechodzi przez węzły spoza klastra, które nie podają dokładnej pozycji i nie mogły zostać umieszczone w symulacji. Stąd w symulacji nadal brakuje średnio około jednego skoku, a od jednej piątej do ponad jednej trzeciej par jest w ogóle nieosiągalnych. Widać też, że wynik zależy od losowania cieniowania. Wnioski o routingu trzeba więc wyciągać z kilku przebiegów.
+W kampanii wykonano następujące testy:
 
-Trzeba też uczciwie zaznaczyć jedną rzecz. Parametry kalibracji zostały dobrane na tych samych parach węzłów, na których potem sprawdzany jest routing. Kalibracja dotyczyła wyłącznie łączy, a routing robi niezmieniony firmware, więc test nie jest pozbawiony sensu. Nie jest jednak w pełni niezależny. Lepszą weryfikację dałby drugi, osobny zbiór danych, na przykład z innego okresu albo z pomiarów prowadzonych celowo.
+\begin{itemize}
+\item \textbf{testy regresyjne} -- 66 testów jednostkowych oraz test na węzłach \texttt{meshtasticd} w układzie liniowym A--B--C, w którym wiadomość węzła A może dotrzeć do węzła C wyłącznie przez retransmisję węzła B,
+\item \textbf{ocena modelu łączy} -- wszystkie pary z obserwacją, model fizyczny (\(L_{ot} = 0\), \(\sigma_{\ell} = 0\)) oraz skalibrowany (\(L_{ot} = 27\) dB, \(\sigma_{\ell} = 20\) dB),
+\item \textbf{ocena routingu} -- sześć klastrów, oba warianty modelu łączy, po 10 przebiegów z różnymi ziarnami,
+\item \textbf{wpływ modelu kolizji i zabudowy} -- przebiegi z wyłączonym modelem kolizji oraz przebiegi klastra rzeszowskiego bez modelu zabudowy,
+\item \textbf{powtarzalność} -- trzykrotne powtórzenie przebiegów o identycznej konfiguracji i ziarnach,
+\item \textbf{współdzielenie kanału} -- syntetyczna sieć, w której każdy węzeł słyszy każdego, przy rosnącym obciążeniu kanału,
+\item \textbf{wrażliwość routingu na stratę otoczenia} -- wartości 10, 20 i 35 dB,
+\item \textbf{skalowalność} -- sieci liczące od 10 do 80 węzłów.
+\end{itemize}
+
+Łącznie wykonano 292 przebiegi. Przebiegi prowadzone były równolegle na 6 do 12 instancjach backendu. W fazie generowania ruchu procesor komputera pozostawał bezczynny w 85--90\%, dzięki czemu równoległe przebiegi nie wpływały na zależności czasowe w symulowanym eterze. Testy regresyjne zakończyły się powodzeniem, a żaden z przebiegów nie zakończył się błędem aplikacji.
+
+\section{Ocena modelu łączy}
+
+Wyniki oceny modelu łączy na 156 parach zbioru testowego przedstawiono w tabeli~\ref{tab:t1}. Parametry modelu nie były dopasowywane do tego zbioru.
+
+\begin{table}[ht]
+\centering
+\caption{Ocena modelu łączy na zbiorze testowym (w nawiasach 95\% przedziały ufności)}
+\label{tab:t1}
+\small
+\begin{tabular}{|>{\raggedright\arraybackslash}p{6.4cm}|c|c|}
+\hline
+\textbf{Metryka} & \textbf{Model fizyczny} & \textbf{Model skalibrowany} \\
+\hline
+AUC & \multicolumn{2}{c|}{0,79 [0,62--0,89]} \\
+Wynik Briera & 0,51 [0,35--0,65] & 0,17 [0,12--0,24] \\
+Logarytmiczna funkcja straty & 3,38 & 0,50 \\
+ECE & 0,57 & 0,22 \\
+Prosta kalibracji \(a\) / \(b\) & -- & \(-1{,}77\) / 0,66 \\
+Średnie przewidywane \(p\) (odsetek łączy 0,12) & 0,68 & 0,33 \\
+TPR / TNR & 1,00 / 0,36 & 0,61 / 0,72 \\
+Zbalansowana trafność / MCC & 0,68 / 0,25 & 0,67 / 0,23 \\
+Błąd mocy na istniejących łączach (\(n = 16\)): średni / RMSE & \(+7{,}9\) / 15,8 dB & \(-19{,}1\) / 23,5 dB \\
+TPR na 58 parach NeighborInfo & 1,00 & 0,64 \\
+\hline
+\end{tabular}
+\end{table}
+
+Model poprawnie porządkuje łącza od najlepszych do najgorszych, na co wskazuje wartość AUC równa 0,79. Ponieważ strata otoczenia przesuwa margines wszystkich łączy o tę samą wartość, uporządkowanie jest identyczne dla obu wariantów. Różnią się natomiast przewidywane prawdopodobieństwa. Model fizyczny przewiduje łącze niemal dla każdej pary o odległości do 15 km, co powoduje wysoką czułość, ale niską swoistość. Model skalibrowany przewiduje prawdopodobieństwa trzykrotnie dokładniej, jednak nadal przeszacowuje liczbę łączy: średnie przewidywane prawdopodobieństwo wynosi 0,33, podczas gdy łącza istnieją w 12\% par. Wartość nachylenia prostej kalibracji mniejsza od jedności wskazuje ponadto, że model jest zbyt pewny swoich przewidywań. Odsetek par z łączem zależy od składu próby, w szczególności od rodzaju bramek, dlatego jedna, globalna wartość straty otoczenia nie odwzorowuje go w pełni. Poprawny jest natomiast stosunek sygnału do szumu dla słabych łączy (SNR poniżej 5 dB, \(n = 12\)): średni błąd wynosi \(-0{,}8\) dB, RMSE 6,4 dB, a współczynnik Spearmana 0,83.
+
+Zależność wyników od odległości przedstawiono na rysunku~\ref{rys:t1_odl}, a zgodność przewidywanych prawdopodobieństw z obserwacjami na rysunku~\ref{rys:t1_kal}.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.75\textwidth]{rysunki/t1_odleglosc.pdf}
+\caption{Odsetek par z łączem bezpośrednim w zależności od odległości: średnie prawdopodobieństwo według modelu i obserwacja w sieci}
+\label{rys:t1_odl}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.6\textwidth]{rysunki/t1_kalibracja.pdf}
+\caption{Wykres niezawodności modelu łączy; liczby przy punktach oznaczają liczbę par w przedziale}
+\label{rys:t1_kal}
+\end{figure}
+
+\section{Ocena routingu}
+
+Wyniki oceny routingu dla 87 par nadawca--bramka w sześciu klastrach przedstawiono w tabeli~\ref{tab:routing}. Metryki wyznaczono na podstawie wyników zebranych z dziesięciu przebiegów każdego wariantu.
+
+\begin{table}[ht]
+\centering
+\caption{Ocena routingu w symulacji na tle sieci rzeczywistej (w nawiasach 95\% przedziały ufności)}
+\label{tab:routing}
+\small
+\begin{tabular}{|>{\raggedright\arraybackslash}p{6.4cm}|c|c|}
+\hline
+\textbf{Metryka} & \textbf{Model fizyczny} & \textbf{Model skalibrowany} \\
+\hline
+Pary osiągnięte w przebiegu (średnio) & 0,96 & 0,93 \\
+Pary z trybem bezpośrednim: symulacja / sieć & 58 / 7 & 29 / 7 \\
+Zgodność trybu przekazania & 0,41 [0,20--0,69] & 0,75 [0,58--0,96] \\
+Współczynnik kappa & 0,08 & 0,30 \\
+Wynik Briera dla trybu bezpośredniego & 0,42 [0,23--0,56] & 0,17 [0,08--0,25] \\
+Różnica liczby skoków (symulacja -- sieć) & \(-1{,}93\) [\(-2{,}56\); \(-1{,}07\)] & \(-1{,}53\) [\(-2{,}11\); \(-0{,}77\)] \\
+Zgodna liczba skoków & 20\% & 24\% \\
+Odległość Wassersteina rozkładów skoków & 2,07 & 1,67 \\
+Odsetek dostarczonych pakietów & 0,83 & 0,73 \\
+Straty: słaby sygnał / kolizja / półdupleks & 24\% / 11\% / 3\% & 31\% / 7\% / 2\% \\
+\hline
+\end{tabular}
+\end{table}
+
+Model skalibrowany odwzorowuje tryb przekazania w 75\% par, a współczynnik kappa wynosi 0,30. Test Wilcoxona dla tych samych 87 par wskazuje, że błąd modelu skalibrowanego jest istotnie mniejszy zarówno dla trybu przekazania (\(p = 1{,}7\cdot 10^{-10}\)), jak i dla liczby skoków (\(p = 6{,}8\cdot 10^{-5}\)). W obu wariantach trasy w symulacji są jednak systematycznie krótsze niż w sieci, średnio o około 1,5 skoku. Rozkład różnicy liczby skoków przedstawiono na rysunku~\ref{rys:t2_skoki}.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.6\textwidth]{rysunki/t2_skoki.pdf}
+\caption{Rozkład różnicy liczby skoków pomiędzy symulacją a siecią dla par nadawca--bramka}
+\label{rys:t2_skoki}
+\end{figure}
+
+Wyniki różnią się wyraźnie pomiędzy klastrami. W klastrze rzeszowskim, jedynym obszarze z danymi o zabudowie, model skalibrowany odwzorował tryb przekazania dla wszystkich par, a średnia różnica liczby skoków wyniosła zero, przy 78\% par z identyczną liczbą skoków. Największe różnice wystąpiły w klastrach warszawskim i lubelskim, w których trasy w sieci rzeczywistej prowadzą przez wiele węzłów spoza klastra. Węzły te nie podają dokładnej pozycji i nie mogły zostać umieszczone w symulacji, dlatego trasy w symulacji są krótsze.
+
+Wpływ poszczególnych elementów modelu oceniono testem Wilcoxona na tych samych parach. Wyłączenie modelu kolizji nie zmienia istotnie zgodności trybu przekazania (\(p = 0{,}17\)) ani liczby skoków (\(p = 0{,}89\)). Uwzględnienie zabudowy w klastrze rzeszowskim zmniejsza błąd trybu przekazania z 0,37 do 0,23 (\(p = 0{,}039\), 9 par, 10 przebiegów), natomiast różnica liczby skoków nie jest istotna (\(p = 0{,}25\)). Ze względu na niewielką liczbę par wynik ten należy traktować jako wskazanie kierunku, a nie jako rozstrzygające potwierdzenie.
+
+Powtarzalność oceniono na podstawie trzykrotnego powtórzenia przebiegów o identycznej konfiguracji i ziarnach. Przebiegi te różnią się wyłącznie opóźnieniami losowanymi wewnątrz oprogramowania \texttt{meshtasticd}. Średnio 83\% par miało w powtórzeniach ten sam tryb przekazania, a 67\% tę samą liczbę skoków. Odchylenie standardowe odsetka dostarczonych pakietów pomiędzy powtórzeniami wyniosło 0,023, podczas gdy pomiędzy przebiegami o różnych ziarnach 0,072. Niedeterministyczność oprogramowania węzłów odpowiada zatem za około jedną trzecią zmienności wyników, co potwierdza konieczność formułowania wniosków na podstawie serii przebiegów.
+
+\section{Współdzielenie kanału}
+
+Model współdzielenia kanału sprawdzono w syntetycznej sieci, w której 10 lub 20 węzłów rozmieszczono na okręgu o promieniu 300 m, tak aby każdy węzeł słyszał wszystkie pozostałe. Limit skoków ustawiono na zero, aby wyeliminować retransmisje, a fading wyłączono. Wiadomości wysyłane były w chwilach wyznaczonych przez proces Poissona o łącznej intensywności \(\lambda\) od 0,25 do 4 wiadomości na sekundę. Obciążenie kanału \(G\) zdefiniowano jako łączny czas nadawania odniesiony do czasu trwania przebiegu.
+
+Wyniki odniesiono do dwóch modeli teoretycznych. W protokole ALOHA bez sprawdzania kanału pakiet jest odebrany poprawnie z prawdopodobieństwem \(e^{-2G}\). W protokole ze sprawdzaniem kanału kolizja następuje wyłącznie wtedy, gdy inna transmisja rozpocznie się w czasie krótszym niż czas wykrycia \(\tau\), co prowadzi do prawdopodobieństwa \(e^{-2\lambda\tau}\), gdzie \(\tau\) równe jest czasowi slotu ze wzoru~\eqref{eq:slot}. Wyniki przedstawiono w tabeli~\ref{tab:medium} oraz na rysunku~\ref{rys:t5}.
+
+\begin{table}[ht]
+\centering
+\caption{Odsetek poprawnie odebranych wiadomości w sieci, w której każdy węzeł słyszy każdego}
+\label{tab:medium}
+\small
+\begin{tabular}{|c|c|c|c|c|c|c|}
+\hline
+\textbf{Węzły} & \(\lambda\) [1/s] & \(G\) & \textbf{Symulacja} & \(e^{-2\lambda\tau}\) & \(e^{-2G}\) & \textbf{Pakiety własne węzłów} \\
+\hline
+10 & 0,25 & 0,06 & 0,98 & 0,99 & 0,89 & 0,61 \\
+10 & 1 & 0,13 & 0,97 & 0,98 & 0,76 & 0,87 \\
+10 & 4 & 0,41 & 0,82 & 0,93 & 0,44 & 0,77 \\
+20 & 0,25 & 0,09 & 0,98 & 0,99 & 0,84 & 0,60 \\
+20 & 1 & 0,17 & 0,95 & 0,97 & 0,71 & 0,73 \\
+20 & 4 & 0,42 & 0,82 & 0,93 & 0,43 & 0,79 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.7\textwidth]{rysunki/t5_medium.pdf}
+\caption{Odsetek udanych odbiorów w funkcji obciążenia kanału na tle modeli teoretycznych}
+\label{rys:t5}
+\end{figure}
+
+Po wyłączeniu modelu kolizji wszystkie wiadomości zostały odebrane, co potwierdza, że model eteru nie wprowadza strat niezwiązanych z zasięgiem lub współdzieleniem kanału. Przy włączonym modelu kolizji wyniki dla małego obciążenia są zgodne z modelem ze sprawdzaniem kanału. Przy obciążeniu około 0,4 odsetek odebranych wiadomości jest o około 0,1 niższy od przewidywań tego modelu. Wynika to z faktu, że po zwolnieniu kanału kilka węzłów, których transmisje zostały wcześniej odroczone, jednocześnie losuje sloty, czego prosty model teoretyczny nie uwzględnia. We wszystkich przypadkach wyniki są znacznie lepsze niż dla protokołu ALOHA, co potwierdza działanie mechanizmu wykrywania zajętości kanału.
+
+Niższy odsetek odbiorów dla pakietów nadawanych samodzielnie przez węzły, takich jak informacje o węźle i jego pozycji, wynika ze sposobu uruchamiania scenariusza. Wszystkie węzły startują jednocześnie, dlatego ich okresowe rozgłoszenia są zsynchronizowane, a losowe opóźnienie nadania wybierane jest z zaledwie ośmiu slotów. Zjawisko to należy uwzględniać przy interpretacji wyników dla małego obciążenia.
+
+\section{Wrażliwość routingu na stratę otoczenia}
+
+W celu oceny, w jakim stopniu skracanie tras wynika z przeszacowania liczby łączy, wykonano przebiegi dla strat otoczenia równych 10, 20 i 35 dB przy cieniowaniu \(\sigma_{\ell} = 20\) dB. Wyniki przedstawiono na rysunku~\ref{rys:t6} oraz w tabeli~\ref{tab:t6}.
+
+\begin{table}[ht]
+\centering
+\caption{Metryki routingu w zależności od straty otoczenia (średnia \(\pm\) odchylenie standardowe przebiegów)}
+\label{tab:t6}
+\footnotesize
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Strata otoczenia} & \textbf{10 dB} & \textbf{20 dB} & \textbf{27 dB} & \textbf{35 dB} \\
+\hline
+Zgodność trybu przekazania & 0,52 \(\pm\) 0,04 & 0,62 \(\pm\) 0,02 & 0,66 \(\pm\) 0,07 & 0,75 \(\pm\) 0,10 \\
+Różnica liczby skoków & \(-1{,}67 \pm 0{,}09\) & \(-1{,}42 \pm 0{,}05\) & \(-1{,}42 \pm 0{,}12\) & \(-1{,}13 \pm 0{,}15\) \\
+Pary osiągnięte w przebiegu & 0,99 & 0,95 & 0,93 & 0,86 \\
+Odsetek dostarczonych pakietów & 0,86 & 0,77 & 0,73 & 0,58 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.9\textwidth]{rysunki/t6_strata_otoczenia.pdf}
+\caption{Zgodność trybu przekazania i różnica liczby skoków w zależności od straty otoczenia}
+\label{rys:t6}
+\end{figure}
+
+Wraz ze wzrostem straty otoczenia zgodność trybu przekazania rośnie, a skracanie tras maleje. Odbywa się to jednak kosztem osiągalności: przy stracie 35 dB średnio 14\% par nie jest osiąganych w przebiegu, podczas gdy w sieci rzeczywistej wszystkie pary komunikują się ze sobą. Nawet przy tej wartości trasy w symulacji są średnio o 1,1 skoku krótsze. Oznacza to, że część różnicy liczby skoków wynika z przeszacowania liczby łączy, natomiast pozostała część wynika z braku w symulacji węzłów spoza klastra, przez które w sieci rzeczywistej prowadzą trasy. Wyjaśnia to również bardzo dobrą zgodność w klastrze rzeszowskim, w którym trasy przebiegają głównie przez węzły należące do klastra.
+
+\section{Skalowalność}
+
+Skalowalność symulatora sprawdzono na sieciach liczących 10, 25, 50 i 80 węzłów rozmieszczonych losowo na obszarze 10 \(\times\) 10 km w okolicy Rzeszowa, z modelem skalibrowanym i modelem zabudowy. W każdym przebiegu wysłano 30 wiadomości rozgłoszeniowych w odstępach 6 s, rozsyłanych metodą zalewania z limitem trzech skoków. Wyniki przedstawiono w tabeli~\ref{tab:skalowalnosc}.
+
+\begin{table}[ht]
+\centering
+\caption{Skalowalność symulatora i zachowanie sieci przy rozsyłaniu wiadomości metodą zalewania}
+\label{tab:skalowalnosc}
+\small
+\begin{tabular}{|c|c|c|c|c|c|c|}
+\hline
+\textbf{Węzły} & \shortstack{\textbf{Obliczanie}\\\textbf{łączy}} & \shortstack{\textbf{Uruchomie-}\\\textbf{nie}} & \shortstack{\textbf{Średni}\\\textbf{stopień}} & \shortstack{\textbf{Zasięg}\\\textbf{wiadomości}} & \shortstack{\textbf{Retrans-}\\\textbf{misje}} & \textbf{Kolizje} \\
+\hline
+10 & 4 s & 36 s & 2,0 & 0,65 / 0,00 & 4,5 & 6\% \\
+25 & 10 s & 82 s & 8,4 & 0,92 / 0,91 & 9,9 & 24\% \\
+50 & 22 s & 162 s & 15,9 & 0,92 / 0,87 & 18,7 & 38\% \\
+80 & 91 s & 219 s & 21,4 & 0,92 / 0,83 & 25,9 & 41\% \\
+\hline
+\end{tabular}
+\end{table}
+
+Zasięg wiadomości podano jako średni oraz 10. percentyl odsetka węzłów, do których dotarła wiadomość, a liczbę retransmisji jako średnią na jedną wiadomość. Średni stopień oznacza średnią liczbę węzłów, dla których mediana mocy odbieranej przekracza czułość odbiornika. Czas uruchomienia scenariusza rośnie liniowo z liczbą węzłów, natomiast czas obliczania łączy rośnie szybciej, ponieważ liczba par węzłów jest proporcjonalna do kwadratu ich liczby. We wszystkich przebiegach nadane zostały wszystkie zaplanowane wiadomości.
+
+Wyniki pokazują zjawisko charakterystyczne dla rozsyłania metodą zalewania. Liczba retransmisji rośnie wraz z liczbą węzłów, a odsetek prób odbioru zakończonych kolizją rośnie z 6\% do 41\%. Dzięki nadmiarowości retransmisji średni zasięg wiadomości pozostaje stały, jednak 10. percentyl maleje z 0,91 do 0,83, co oznacza, że najgorzej obsłużone wiadomości docierają do coraz mniejszej części sieci. Przy dziesięciu węzłach na obszarze 100 km\(^2\) sieć jest natomiast niespójna, ponieważ węzeł ma średnio tylko dwóch sąsiadów.
+
+\section{Podsumowanie weryfikacji}
+
+Przeprowadzona weryfikacja pozwala określić zakres, w jakim wyniki symulatora mogą być uznane za wiarygodne. Warstwa logiczna sieci realizowana jest przez rzeczywiste oprogramowanie Meshtastic, dlatego mechanizmy routingu i retransmisji nie wymagają odrębnej weryfikacji. Model łączy poprawnie porządkuje łącza na danych niezależnych od kalibracji, a model współdzielenia kanału zachowuje się zgodnie z oczekiwaniami teoretycznymi. Model skalibrowany odwzorowuje tryb przekazania pakietów w trzech czwartych par węzłów, a w obszarze z danymi o zabudowie zgodność routingu z siecią rzeczywistą jest niemal pełna.
+
+Symulator przeszacowuje natomiast liczbę łączy bezpośrednich, a trasy w symulacji są średnio o około 1,5 skoku krótsze niż w sieci. Przyczyną są zarówno nieznane parametry instalacji poszczególnych węzłów, jak i brak w symulacji węzłów, które nie podają dokładnej pozycji. Z tego względu symulator nadaje się przede wszystkim do porównywania wariantów sieci, na przykład rozmieszczenia węzłów, ich ról, limitów skoków czy presetów modemu, oraz do badania zjawisk takich jak kolizje i skalowalność. Bezwzględne wartości, takie jak dokładny odsetek dostarczonych pakietów czy liczba skoków w konkretnej istniejącej sieci, należy interpretować ostrożnie i uśredniać na podstawie serii przebiegów. Dokładniejsze odwzorowanie wymagałoby znajomości parametrów instalacji węzłów, a jego potwierdzenie przeprowadzenia kontrolowanej kampanii pomiarowej z węzłami o znanej konfiguracji.

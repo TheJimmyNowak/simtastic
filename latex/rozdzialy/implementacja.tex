@@ -1,10 +1,10 @@
 \chapter{Implementacja symulatora}
 
-Symulator ma jedno główne założenie. Logika sieci ma być prawdziwa, a symulowane jest tylko radio. Każdy węzeł to działający program Meshtastic, ten sam, który pracuje na fizycznych urządzeniach. Zamiast anteny i modułu LoRa dostaje on jednak pośrednika, który decyduje, kto usłyszy jego transmisję i z jaką mocą. Dzięki temu nie trzeba przepisywać routingu Meshtastic od nowa. Wystarczy dobrze udawać eter.
+Podstawowym założeniem projektowym symulatora jest oddzielenie warstwy logicznej sieci od warstwy radiowej. Warstwa logiczna, obejmująca routing, retransmisje, kolejki nadawcze oraz obsługę ról węzłów, nie jest modelowana, lecz realizowana przez rzeczywiste oprogramowanie Meshtastic uruchomione w trybie symulacji. Symulowana jest wyłącznie warstwa fizyczna, czyli propagacja sygnału pomiędzy węzłami, poziom odbieranej mocy, zjawiska losowe w kanale radiowym oraz współdzielenie kanału przez wiele nadajników. Takie podejście pozwala uniknąć ponownej implementacji mechanizmów routingu, które w rzeczywistym systemie podlegają ciągłym zmianom, a jednocześnie zapewnia, że zachowanie węzłów w symulacji odpowiada zachowaniu urządzeń pracujących w sieci.
 
 \section{Architektura}
 
-Całość działa w kontenerach Docker. Na rysunku~\ref{rys:architektura} widać, jak części łączą się ze sobą.
+Symulator składa się z kilku współpracujących ze sobą komponentów uruchamianych w kontenerach Docker. Zależności pomiędzy nimi przedstawiono na rysunku~\ref{rys:architektura}.
 
 \begin{figure}[ht]
 \centering
@@ -22,61 +22,94 @@ Całość działa w kontenerach Docker. Na rysunku~\ref{rys:architektura} widać
 \label{rys:architektura}
 \end{figure}
 
-Backend napisany jest w Pythonie, w oparciu o FastAPI. Przechowuje scenariusze, czyli opis środowiska radiowego i listę węzłów z ich położeniem, wysokością anteny, rolą oraz limitem skoków. Uruchamia też kontenery węzłów i pilnuje całego cyklu życia symulacji.
+Centralnym elementem jest backend napisany w języku Python z wykorzystaniem biblioteki FastAPI. Udostępnia on interfejs REST, za pomocą którego tworzone są scenariusze, obliczane są łącza radiowe oraz uruchamiana i zatrzymywana jest symulacja. Scenariusz zawiera opis środowiska radiowego, czyli preset modemu, parametry modelu propagacji, parametry zjawisk losowych i ustawienia modelu kolizji, a także listę węzłów. Dla każdego węzła określane są między innymi współrzędne geograficzne, wysokość anteny nad terenem, zyski anten nadawczej i odbiorczej, limit skoków oraz rola w sieci. Scenariusze zapisywane są w plikach YAML, co pozwala na ich łatwe przenoszenie i odtwarzanie eksperymentów.
 
-Każdy węzeł to osobny kontener z programem \texttt{meshtasticd} uruchomionym w trybie \texttt{-s}. W tym trybie Meshtastic nie szuka fizycznego radia, tylko korzysta z modułu SimRadio. Każda transmisja, którą węzeł chciałby nadać w eter, trafia wtedy do jego klienta TCP jako pakiet typu \texttt{SIMULATOR\_APP}. W drugą stronę działa to podobnie. Pakiet \texttt{SIMULATOR\_APP} wysłany do węzła jest przez niego traktowany jak odebrany z anteny. Ten mechanizm jest punktem zaczepienia dla całego symulatora.
+Każdy symulowany węzeł jest osobnym kontenerem, w którym uruchamiany jest program \texttt{meshtasticd} w trybie \texttt{-s}. W tym trybie oprogramowanie nie korzysta z fizycznego modułu radiowego, lecz z modułu SimRadio. Każda transmisja, którą węzeł chciałby wysłać w eter, jest przekazywana do klienta połączonego z węzłem przez TCP w postaci pakietu typu \texttt{SIMULATOR\_APP}, zawierającego oryginalny numer portu i dane pakietu. Komunikacja w przeciwnym kierunku przebiega analogicznie. Pakiet \texttt{SIMULATOR\_APP} przesłany do węzła jest przez niego traktowany jako pakiet odebrany drogą radiową, razem z podanymi wartościami RSSI i SNR. Mechanizm ten stanowi podstawę działania symulatora, ponieważ pozwala w pełni kontrolować, które węzły i z jaką mocą odbierają daną transmisję.
 
-Przed startem symulacji każdy węzeł jest konfigurowany przez jego API. Dostaje region EU\_868, preset modemu, limit skoków, rolę i stałą pozycję. Potem jest restartowany, a symulator sprawdza, czy konfiguracja przetrwała restart. Jeśli coś się nie zgadza, start zostaje przerwany. Lepiej zatrzymać się od razu niż liczyć wyniki na węźle, który pracuje z innym presetem niż zakłada model radiowy.
+Kontenery węzłów oznaczane są etykietami zawierającymi identyfikator scenariusza. Pozwala to na jednoznaczne usuwanie kontenerów po zakończeniu symulacji, a także po nieoczekiwanym zatrzymaniu backendu. Każdy węzeł rozpoczyna pracę z czystym systemem plików, dzięki czemu kolejne uruchomienia scenariusza nie dziedziczą stanu poprzednich, na przykład zapamiętanej listy sąsiadów.
 
-Interfejs użytkownika to aplikacja React z mapą Leaflet. Prowadzi przez kolejne kroki: ustawienie środowiska, rozmieszczenie węzłów na mapie, obliczenie łączy, uruchomienie symulacji i podgląd pakietów. Szczegółowy ślad trafia do bazy InfluxDB, a gotowe pulpity w Grafanie pokazują na przykład odsetek dostarczonych pakietów albo przebieg retransmisji konkretnej wiadomości.
+Interfejs użytkownika jest aplikacją React z mapą Leaflet. Prowadzi on użytkownika przez kolejne etapy przygotowania eksperymentu: konfigurację środowiska, rozmieszczenie węzłów na mapie, obliczenie łączy, uruchomienie symulacji oraz analizę przesłanych pakietów. Szczegółowy ślad symulacji zapisywany jest w bazie szeregów czasowych InfluxDB, a przygotowane pulpity w programie Grafana prezentują między innymi odsetek dostarczonych pakietów, przebieg retransmisji wybranej wiadomości oraz porównanie przebiegów o różnej liczbie węzłów.
+
+\section{Konfiguracja węzłów}
+
+Przed rozpoczęciem symulacji każdy węzeł jest konfigurowany za pomocą komunikatów administracyjnych protokołu Meshtastic. Konfiguracja odbywa się w ramach jednej transakcji ustawień i obejmuje:
+
+\begin{itemize}
+\item \textbf{nazwę węzła} -- nazwę długą i skróconą, wyświetlaną w aplikacjach klienckich,
+\item \textbf{parametry radiowe} -- region EU\_868, preset modemu (lub jawne wartości \(SF\), \(BW\), \(CR\) i częstotliwości), limit skoków oraz moc nadajnika,
+\item \textbf{rolę węzła} -- CLIENT, CLIENT\_MUTE, ROUTER lub REPEATER, a także okres rozgłaszania informacji o węźle,
+\item \textbf{pozycję} -- stałą pozycję geograficzną z wysokością anteny nad poziomem morza oraz okres jej rozgłaszania.
+\end{itemize}
+
+Ponadto wyłączane są protokoły sieciowe, które pozwalałyby węzłom komunikować się z pominięciem symulowanego eteru. Kolejne komunikaty administracyjne wysyłane są w odstępach 0,5 s, ponieważ \texttt{meshtasticd} posiada niewielką kolejkę pakietów lokalnych i przy zbyt szybkim wysyłaniu odrzuca najstarsze z nich. Po zatwierdzeniu transakcji węzeł jest uruchamiany ponownie, a symulator odczytuje jego konfigurację i porównuje ją z oczekiwaną. W przypadku niezgodności regionu, presetu, limitu skoków lub roli uruchomienie symulacji zostaje przerwane. Zgodność parametrów modemu z modelem radiowym jest istotna, ponieważ od nich zależy czas trwania transmisji, a w konsekwencji prawdopodobieństwo kolizji.
+
+Węzły konfigurowane są równolegle, domyślnie po cztery jednocześnie. Czas uruchomienia scenariusza rośnie liniowo z liczbą węzłów i wynosi około 2,7 s na węzeł, co zostało pokazane w rozdziale~\ref{chap:weryfikacja}.
 
 \section{Obliczanie łączy przed symulacją}
 
-Model Longley-Rice jest kosztowny, więc liczę go raz, przed uruchomieniem węzłów. Dla każdej pary węzłów symulator buduje profil terenu z danych SRTM \cite{farr2007}. Próbki biorę mniej więcej co 90 metrów, bo taka jest rozdzielczość danych SRTM3. Początkowo profil miał zawsze 50 odcinków. Dla trasy długości 40 km oznaczało to próbkę co 800 metrów, a przy takiej gęstości łatwo przeoczyć wzniesienie. Po zagęszczeniu profilu straty dla dłuższych tras zmieniły się nawet o 6 dB.
+Obliczenie strat propagacyjnych modelem Longley-Rice jest kosztowne obliczeniowo, dlatego wykonywane jest jednokrotnie, przed uruchomieniem węzłów. Dla każdej pary węzłów wyznaczany jest profil terenu na podstawie danych SRTM \cite{farr2007}. Odległość pomiędzy kolejnymi punktami profilu wynosi około 90 m, co odpowiada rozdzielczości danych SRTM3. Na podstawie profilu wyznaczana jest strata terenowa za pomocą biblioteki itmlogic \cite{oughton2020}. Przyjęto przeciętne parametry gruntu (przenikalność względna 15, przewodność 0,005 S/m), refrakcyjność powierzchniową 314 jednostek N oraz wartości mediany rozkładu, tj. niezawodność i ufność równe 50\%. Ponieważ model ITM nie jest w pełni symetryczny, strata wyznaczana jest osobno dla obu kierunków łącza. Obliczenia dla poszczególnych par wykonywane są równolegle w wielu procesach.
 
-Na profilu liczona jest strata terenowa ITM z biblioteki itmlogic \cite{oughton2020}. Przyjmuję typowe parametry gleby (przenikalność 15, przewodność 0,005 S/m), refrakcję 314 jednostek N oraz medianę rozkładu, czyli niezawodność i ufność po 50\%. Dla obszarów, dla których są dostępne modele budynków LoD1 w formacie CityGML, symulator sprawdza dodatkowo, czy budynki wchodzą w pierwszą strefę Fresnela. Jeśli tak, dolicza stratę dyfrakcyjną dominującej przeszkody.
+\subsection{Model zabudowy}
 
-Wynikowa mediana straty ścieżki dla pary nadajnik i odbiornik ma postać:
+Dla obszarów, dla których dostępne są modele budynków LoD1 w formacie CityGML, uwzględniana jest dodatkowo strata wynikająca z zabudowy. Modele budynków udostępniane są przez Główny Urząd Geodezji i Kartografii w paczkach powiatowych \cite{gugik_lod1}. Przed użyciem są one importowane do bazy SQLite z indeksem przestrzennym, zawierającej obrys oraz wysokość każdego budynku w układzie współrzędnych PL-1992.
+
+Jeżeli węzeł znajduje się wewnątrz obrysu budynku, jego antena umieszczana jest na dachu, a podana wysokość anteny traktowana jest jako wysokość masztu ponad dachem. Następnie dla każdej pary węzłów wyszukiwane są budynki znajdujące się w pobliżu odcinka łączącego anteny. Dla każdego budynku wyznaczany jest punkt najbliższy linii łącza oraz promień pierwszej strefy Fresnela w tym punkcie:
+
+\begin{equation}\label{eq:fresnel}
+r_1 = \sqrt{\frac{\lambda\, d_1 d_2}{d_1 + d_2}}
+\end{equation}
+
+gdzie \(\lambda\) oznacza długość fali, a \(d_1\) i \(d_2\) odległości od punktu przeszkody do obu anten. Budynek uznawany jest za przeszkodę, jeżeli jego dach wchodzi w wymaganą wolną część strefy Fresnela, domyślnie 60\% jej promienia. Dla każdej przeszkody wyznaczana jest strata dyfrakcyjna dla pojedynczej krawędzi \cite{itu_p526}:
+
+\begin{equation}\label{eq:knife}
+J(\nu) = 6{,}9 + 20\log_{10}\left(\sqrt{(\nu - 0{,}1)^2 + 1} + \nu - 0{,}1\right), \qquad \nu = h\sqrt{\frac{2(d_1 + d_2)}{\lambda d_1 d_2}}
+\end{equation}
+
+gdzie \(h\) oznacza wysokość dachu ponad linią łączącą anteny. Do straty łącza doliczana jest strata dominującej przeszkody, czyli największa z wyznaczonych wartości. Wysokość dachu liczona jest względem terenu z danych SRTM, dzięki czemu wysokości budynków i profil terenu odnoszą się do tego samego poziomu odniesienia.
+
+\subsection{Strata łącza i moc odbierana}
+
+Wynikowa mediana straty ścieżki dla pary nadajnik--odbiornik ma postać:
 
 \begin{equation}\label{eq:pl_sym}
 L = L_{ITM} + L_{bud} + L_{ot} + X_{\ell}, \qquad X_{\ell} \sim \mathcal{N}(0, \sigma_{\ell}^2)
 \end{equation}
 
-gdzie \(L_{ITM}\) to strata terenowa, \(L_{bud}\) strata od budynków, \(L_{ot}\) stała strata otoczenia, a \(X_{\ell}\) trwałe cieniowanie łącza. Dwa ostatnie składniki wymagają krótkiego komentarza. Model terenu nie widzi drzew, gęstej zabudowy poza obszarem z danymi CityGML, anteny schowanej na parapecie ani kiepskiego kabla. Strata otoczenia zbiera te wszystkie rzeczy w jedną liczbę. Cieniowanie łącza robi coś innego. Losuje dla każdej pary węzłów jedną wartość, taką samą w obu kierunkach, i trzyma ją przez całą symulację. Dzięki temu dwa łącza tej samej długości nie muszą być tak samo dobre, co w prawdziwej sieci zdarza się bardzo często. Oba parametry zostały dobrane na danych z działającej sieci, o czym więcej w rozdziale~\ref{chap:weryfikacja}. Domyślnie są wyzerowane.
+gdzie \(L_{ITM}\) oznacza stratę terenową, \(L_{bud}\) stratę wynikającą z zabudowy, \(L_{ot}\) stałą stratę otoczenia, a \(X_{\ell}\) trwałe cieniowanie łącza. Strata otoczenia reprezentuje czynniki, których nie obejmuje model terenu ani model zabudowy, takie jak roślinność, budynki poza obszarem z danymi CityGML, umieszczenie anteny wewnątrz budynku czy straty w przewodach. Trwałe cieniowanie łącza losowane jest jednokrotnie dla każdej pary węzłów, z tą samą wartością dla obu kierunków, i pozostaje stałe przez cały czas symulacji. Pozwala to odwzorować sytuację, w której dwa łącza o tej samej długości i podobnym profilu terenu charakteryzują się wyraźnie różną jakością. Oba parametry są domyślnie równe zeru. Wartości dobrane na podstawie danych z działającej sieci przedstawiono w rozdziale~\ref{chap:weryfikacja}.
 
-Z budżetu łącza \eqref{linkbudget} wynika medianowa moc odbierana:
+Na podstawie budżetu łącza \eqref{linkbudget} wyznaczana jest mediana mocy odbieranej:
 
 \begin{equation}\label{eq:rssi}
 P_{RX} = P_{TX} + G_{TX} + G_{RX} - L
 \end{equation}
 
-Domyślna moc nadajnika to 22 dBm. Tyle daje układ SX1262, który siedzi w większości popularnych urządzeń, a Meshtastic domyślnie nadaje z maksymalną mocą układu. Limit regionu wynosi co prawda 27 dBm, ale niewiele węzłów go osiąga.
+Domyślna moc nadajnika wynosi 22 dBm. Jest to maksymalna moc układu SX1262 stosowanego w większości popularnych urządzeń, z której Meshtastic korzysta domyślnie. Limit mocy dla regionu EU\_868 wynosi 27 dBm, jednak jest on osiągany przez niewielką część węzłów.
 
-Szum odbiornika i czułość wynikają z tego samego wzoru:
+Poziom szumu oraz czułość odbiornika wyznaczane są na podstawie zależności:
 
 \begin{equation}\label{eq:szum}
 N = -174 + 10\log_{10}(BW) + NF, \qquad S_{RX} = N + SNR_{min}(SF)
 \end{equation}
 
-gdzie \(BW\) jest szerokością pasma w hercach, \(NF = 6\) dB to współczynnik szumów odbiornika, a \(SNR_{min}\) minimalny stosunek sygnału do szumu, przy którym demodulator LoRa jeszcze sobie radzi. Dla pasma 250 kHz szum wynosi \(-114\) dBm. Dla presetu MEDIUM\_FAST (SF9, \(SNR_{min} = -12{,}5\) dB) daje to czułość \(-126{,}5\) dBm.
+gdzie \(BW\) oznacza szerokość pasma w hercach, \(NF = 6\) dB współczynnik szumów odbiornika, a \(SNR_{min}\) minimalny stosunek sygnału do szumu, przy którym możliwa jest demodulacja dla danego współczynnika rozpraszania. Dla pasma 250 kHz poziom szumu wynosi \(-114\) dBm, a dla presetu MEDIUM\_FAST (SF9, \(SNR_{min} = -12{,}5\) dB) czułość odbiornika wynosi \(-126{,}5\) dBm.
 
-Wynikiem tego etapu jest macierz łączy zapisywana na dysku. Razem z nią zapisuję odcisk wszystkich danych wejściowych modelu. Gdy użytkownik zmieni coś, co wpływa na propagację, odcisk przestaje pasować i łącza trzeba policzyć od nowa. Zmiana nazwy węzła albo seeda fadingu macierzy nie unieważnia.
+Wynikiem tego etapu jest macierz łączy zawierająca dla każdej pary węzłów między innymi odległość, stratę terenową, stratę od budynków, wartość cieniowania oraz medianę mocy odbieranej. Macierz zapisywana jest na dysku razem z odciskiem (skrótem SHA-256) wszystkich danych wejściowych, które wpływają na propagację. Zmiana dowolnego z tych parametrów powoduje unieważnienie macierzy i konieczność ponownego obliczenia łączy, natomiast zmiana parametrów niezwiązanych z propagacją, takich jak nazwa węzła czy seed fadingu, nie wymaga ponownych obliczeń. Do symulacji przekazywane są wyłącznie pary, dla których mediana mocy odbieranej przekracza próg łączności, domyślnie \(-140\) dBm, co ogranicza liczbę obliczeń w czasie działania symulacji.
 
 \section{Eter w czasie działania symulacji}
 
-Za eter odpowiada moduł RadioGateway. Jest połączony z każdym węzłem i nasłuchuje pakietów \texttt{SIMULATOR\_APP}. Kiedy któryś węzeł nadaje, gateway wie dwie rzeczy: kto nadaje i kiedy zaczął. Nadawcą jest węzeł, którego połączenie zgłosiło pakiet. Pole \texttt{from} w pakiecie się do tego nie nadaje, bo przy retransmisji wskazuje autora wiadomości, a nie węzeł, który właśnie ją powtórzył.
+Za odwzorowanie eteru w czasie działania symulacji odpowiada moduł RadioGateway. Utrzymuje on połączenie TCP z każdym węzłem i odbiera zgłaszane przez nie pakiety \texttt{SIMULATOR\_APP}. Nadajnikiem jest węzeł, którego połączenie zgłosiło dany pakiet. Pole \texttt{from} pakietu nie może zostać do tego wykorzystane, ponieważ w przypadku retransmisji wskazuje ono autora wiadomości, a nie węzeł, który ją powtórzył.
 
-Dla każdego sąsiada nadawcy gateway losuje fading \(X \sim \mathcal{N}(0, \sigma^2)\) i liczy moc odebraną jako \(P_{RX} + X\). Fading jest losowany osobno dla każdej transmisji. Opisuje więc to, że ten sam pakiet wysłany dwa razy po tej samej trasie raz dojdzie, a raz nie. SNR to różnica mocy i szumu, ale obcięta do 12 dB, bo tyle mniej więcej pokazuje prawdziwy odbiornik LoRa.
+Dla każdego sąsiada nadajnika losowana jest wartość fadingu \(X \sim \mathcal{N}(0, \sigma^2)\), a moc odbierana wyznaczana jest jako \(P_{RX} + X\). Fading losowany jest niezależnie dla każdej transmisji i opisuje zmienność warunków propagacyjnych w czasie, w odróżnieniu od trwałego cieniowania łącza, które opisuje różnice pomiędzy łączami. Stosunek sygnału do szumu wyznaczany jest jako różnica mocy odbieranej i poziomu szumu, ograniczona od góry do 12 dB. Ograniczenie to odpowiada zachowaniu rzeczywistych odbiorników LoRa, które nie raportują wyższych wartości SNR. Ma ono również znaczenie dla poprawności symulacji, ponieważ Meshtastic wyznacza na podstawie SNR opóźnienie retransmisji, a nierealistycznie wysokie wartości prowadziłyby do opóźnień znacznie dłuższych niż w rzeczywistej sieci.
 
-To obcięcie wygląda na kosmetykę, a okazało się bardzo ważne. Bez niego węzły stojące blisko siebie dostawały SNR rzędu 70 dB. Meshtastic wylicza z SNR opóźnienie retransmisji (im lepszy sygnał, tym dłużej węzeł czeka, żeby pierwszeństwo miały węzły dalsze). Przy 70 dB opóźnienie wyszło na około 45 minut. Pakiet stał w kolejce nadawczej, blokował wszystko za sobą i węzeł po prostu milkł. Z zewnątrz wyglądało to tak, jakby symulacja gubiła ruch. Dopiero log firmware z wpisem o opóźnieniu 2752920 ms pokazał, co się dzieje.
-
-Przy okazji wyszedł drugi problem. Biblioteka meshtastic dla Pythona przed wysłaniem pakietu do węzła czeka, aż w jego kolejce nadawczej zwolni się miejsce. Czeka bez limitu czasu. Wszystkie odbiory były wstrzykiwane z jednego wątku tej biblioteki, więc jeden zapchany węzeł zatrzymywał eter dla całej sieci. Teraz gateway zapisuje odebrany pakiet bezpośrednio do strumienia TCP. To ma sens, bo z punktu widzenia węzła jest to odbiór z anteny, a nie wiadomość od aplikacji, więc kolejka nadawcza w ogóle go nie dotyczy.
+Odebrany pakiet przekazywany jest węzłom odbiorczym jako pakiet \texttt{SIMULATOR\_APP} zawierający pełną kopię oryginalnego pakietu, w tym limit skoków, identyfikator ostatniego węzła przekazującego oraz wyznaczone wartości RSSI i SNR. Pakiet zapisywany jest bezpośrednio do strumienia TCP węzła, z pominięciem kontroli przepływu biblioteki klienckiej. Z punktu widzenia węzła jest to bowiem odbiór radiowy, a nie wiadomość od aplikacji, więc nie dotyczy go ograniczenie wynikające z zajętości kolejki nadawczej.
 
 \section{Kolizje}
 
-Na początku symulator nie znał kolizji. Każdy pakiet powyżej czułości po prostu docierał. Dla kilku węzłów to nie przeszkadza. Ale sieć Meshtastic działa trochę jak sala, w której wszyscy mówią na jednym kanale. Przy kilkudziesięciu węzłach i zalewowym rozsyłaniu wiadomości to właśnie nakładanie się transmisji najbardziej ogranicza sieć. Bez kolizji wyniki skalowalności byłyby zdecydowanie zbyt optymistyczne.
+W sieci Meshtastic wszystkie węzły korzystające z tego samego presetu współdzielą jeden kanał radiowy. Przy większej liczbie węzłów i rozgłaszaniu wiadomości metodą zalewania nakładanie się transmisji staje się jednym z głównych czynników ograniczających działanie sieci. Z tego względu symulator zawiera model współdzielenia kanału, oparty na pracy Bora i współautorów \cite{bor2016} oraz na regułach zastosowanych w symulatorze LoRaSim.
 
-Model kolizji opieram na pracy Bora i współautorów \cite{bor2016} i na regułach z ich symulatora LoRaSim. Pierwsza rzecz to czas trwania pakietu w eterze. Liczę go wzorem z noty aplikacyjnej Semtech \cite{semtech_an1200_13}:
+\subsection{Czas trwania transmisji}
+
+Podstawą modelu jest czas trwania pakietu w eterze, wyznaczany zgodnie z notą aplikacyjną firmy Semtech \cite{semtech_an1200_13}:
 
 \begin{equation}\label{eq:airtime}
 \begin{split}
@@ -85,33 +118,51 @@ n_{dane} &= 8 + \max\left(\left\lceil \frac{8PL - 4SF + 44}{4(SF - 2DE)} \right\
 \end{split}
 \end{equation}
 
-gdzie \(T_S\) to czas symbolu ze wzoru~\eqref{T_S}, \(n_{pr} = 16\) to długość preambuły używana przez Meshtastic, \(PL\) długość pakietu w bajtach (dane i 16 bajtów nagłówka), \(CR_d\) mianownik współczynnika kodowania (od 5 do 8), a \(DE\) przyjmuje wartość 1, gdy symbol trwa dłużej niż 16 ms. Dla presetu LONG\_FAST i pakietu 16 bajtów daje to 354 ms.
+gdzie \(T_S\) oznacza czas trwania symbolu ze wzoru~\eqref{T_S}, \(n_{pr} = 16\) długość preambuły stosowaną przez Meshtastic, \(PL\) długość pakietu w bajtach (dane wraz z 16-bajtowym nagłówkiem), \(CR_d\) mianownik współczynnika kodowania (od 5 do 8), natomiast \(DE\) przyjmuje wartość 1, jeżeli czas trwania symbolu przekracza 16 ms. Przykładowo dla presetu LONG\_FAST i pakietu o długości 16 bajtów czas transmisji wynosi 354 ms.
 
-Odbiór oceniam dopiero wtedy, gdy pakiet się skończy. Prawdziwy odbiornik też oddaje pakiet do programu dopiero po odebraniu całości, więc gateway czeka czas \(T_{pkt}\) i jeszcze 50 ms zapasu. W tym momencie zna już wszystkie transmisje, które nałożyły się na dany pakiet, także te, które zaczęły się później. Z kodu SimRadio \cite{meshtastic_firmware} wynika, że w standardowej kompilacji \texttt{meshtasticd} przetwarza wstrzyknięty pakiet od razu, więc opóźnienie się nie podwaja.
+\subsection{Rozstrzyganie odbioru}
 
-Pakiet \(p\) nie dociera do odbiorcy \(r\), jeśli zachodzi któryś z warunków:
+Odbiór pakietu rozstrzygany jest dopiero po zakończeniu jego transmisji, z dodatkowym zapasem 50 ms na zgłoszenia innych węzłów. Odpowiada to działaniu rzeczywistego odbiornika, który przekazuje pakiet do oprogramowania dopiero po odebraniu całości. W momencie rozstrzygania znane są już wszystkie transmisje, które nałożyły się w czasie na dany pakiet, w tym również te rozpoczęte później. Pakiet \(p\) nie zostaje odebrany przez węzeł \(r\), jeżeli spełniony jest jeden z warunków:
+
 \begin{itemize}
-\item jego moc u \(r\) jest poniżej czułości,
-\item \(r\) sam nadawał w czasie trwania \(p\), bo radio LoRa nie odbiera podczas nadawania,
-\item nakłada się z nim pakiet \(q\), którego moc u \(r\) spełnia warunek
+\item \textbf{słaby sygnał} -- moc pakietu u odbiorcy jest niższa od czułości odbiornika,
+\item \textbf{półdupleks} -- węzeł \(r\) sam nadawał w czasie trwania pakietu \(p\), ponieważ moduł LoRa nie odbiera podczas nadawania,
+\item \textbf{kolizja} -- z pakietem \(p\) nakłada się pakiet \(q\), którego moc u odbiorcy spełnia warunek
 \begin{equation}\label{eq:capture}
 P_p - P_q < \Delta_{cap}, \qquad \Delta_{cap} = 6~\textrm{dB},
 \end{equation}
-chyba że \(q\) skończył się w pierwszych \(n_{pr} - 5 = 11\) symbolach preambuły pakietu \(p\).
+chyba że transmisja \(q\) zakończyła się w ciągu pierwszych \(n_{pr} - 5 = 11\) symboli preambuły pakietu \(p\).
 \end{itemize}
 
-Ostatni warunek to efekt przechwycenia. Jeśli jeden z dwóch pakietów jest wyraźnie silniejszy, odbiornik go wyłapie, a słabszy przepadnie. Gdy oba są podobnie silne, giną oba. Wyjątek dla preambuły też pochodzi z LoRaSim. Odbiornik do synchronizacji potrzebuje tylko kilku ostatnich symboli preambuły, więc zakłócenie, które skończy się wcześniej, nie robi mu krzywdy.
+Warunek kolizji odwzorowuje efekt przechwycenia (ang. \textit{capture effect}). Jeżeli jeden z nakładających się pakietów jest wyraźnie silniejszy, odbiornik poprawnie go odbiera, a słabszy zostaje utracony. Przy zbliżonej mocy obu sygnałów tracone są obydwa pakiety. Wyjątek dotyczący preambuły wynika z faktu, że do synchronizacji odbiornik wykorzystuje jedynie końcowe symbole preambuły, dlatego zakłócenie kończące się wcześniej nie uniemożliwia odbioru.
 
-Zostaje jeszcze jedna rzecz. Prawdziwy węzeł Meshtastic nie nadaje na ślepo. Najpierw odczekuje losowy czas z okna rywalizacji, a potem sprawdza, czy ktoś już nadaje (mechanizm CAD, \textit{Channel Activity Detection}). Jeśli kanał jest zajęty, losuje opóźnienie od nowa \cite{meshtastic_firmware}. SimRadio losowe opóźnienie zachowuje, ale CAD pomija, bo dla niego kanał nigdy nie jest zajęty. Bez poprawki węzły, które się dobrze słyszą, wchodziłyby sobie w słowo znacznie częściej niż w rzeczywistości. Dlatego gateway emuluje CAD. Jeśli węzeł zaczyna nadawać, a w tym momencie słyszy cudzy sygnał powyżej czułości, jego transmisja jest przesuwana za koniec tamtego sygnału o losową liczbę slotów od 0 do 7. Długość slotu i rozmiar okna biorę z kodu firmware: slot to 2,5 czasu symbolu plus 7,6 ms.
+\subsection{Wykrywanie zajętości kanału}
 
-Każda nieudana próba odbioru trafia do śladu razem z przyczyną: za słaby sygnał, kolizja albo nadawanie odbiorcy. W widoku pakietów i w Grafanie widać więc od razu, ile strat robią kolizje, a ile sam zasięg.
+Rzeczywisty węzeł Meshtastic przed rozpoczęciem nadawania odczekuje losowy czas z okna rywalizacji, a następnie sprawdza zajętość kanału za pomocą mechanizmu CAD (ang. \textit{Channel Activity Detection}). W przypadku wykrycia aktywności losuje kolejne opóźnienie \cite{meshtastic_firmware}. Moduł SimRadio zachowuje losowe opóźnienie, jednak nie wykonuje sprawdzenia kanału, dlatego mechanizm ten emulowany jest przez moduł RadioGateway. W chwili zgłoszenia transmisji sprawdzane jest, czy w planowanym czasie jej trwania nadaje inny węzeł słyszany przez nadawcę z mocą nie mniejszą niż czułość odbiornika. Uwzględniane są również transmisje, których rozpoczęcie zostało wcześniej przesunięte na późniejszą chwilę, ponieważ ich węzły wykonają sprawdzenie kanału w momencie rozpoczęcia nadawania. W przypadku wykrycia aktywności początek transmisji przesuwany jest za koniec wykrytego sygnału o losową liczbę slotów z zakresu od 0 do \(2^{CW_{min}} - 1\), gdzie \(CW_{min} = 3\). Czas trwania slotu przyjęto zgodnie z oprogramowaniem Meshtastic:
 
-Model został sprawdzony na prawdziwych węzłach \texttt{meshtasticd} w klasycznym układzie ukrytego węzła. Węzły A i C stoją po dwóch stronach węzła B i nie słyszą się nawzajem. Ich sygnały u B różnią się o 5,7 dB, czyli mniej niż próg przechwycenia. A i C nadawały jednocześnie w ośmiu rundach. Z włączonymi kolizjami B stracił oba pakiety w sześciu rundach. W dwóch pozostałych losowe opóźnienie w firmware rozsunęło transmisje na tyle, że się nie nałożyły. Po wyłączeniu kolizji B odebrał wszystkie szesnaście pakietów.
+\begin{equation}\label{eq:slot}
+t_{slot} = 2{,}5\,T_S + 7{,}6~\textrm{ms}
+\end{equation}
 
-Model ma swoje uproszczenia. Synchronizacja na preambule jest opisana jedną regułą jedenastu symboli. Wszystkie węzły pracują z tym samym współczynnikiem rozpraszania, więc nie modeluję częściowej ortogonalności różnych SF. Moc zakłócenia jest stała przez cały czas trwania pakietu. Emulowany CAD wykrywa sygnał przez cały czas transmisji, choć prawdziwy układ najpewniej łapie preambułę.
+Dla presetu MEDIUM\_FAST czas slotu wynosi 12,7 ms. Sprawdzenie kanału nie jest natychmiastowe, dlatego transmisje rozpoczynające się w odstępie krótszym niż jeden slot nie wykrywają się wzajemnie i ulegają kolizji. Odpowiada to sytuacji, w której dwa węzły sprawdzają kanał w tym samym slocie i oba uznają go za wolny. Ponadto własna, trwająca transmisja węzła zawsze blokuje jego moduł radiowy, dlatego kolejny pakiet tego samego węzła rozpoczyna się dopiero po zakończeniu poprzedniego. Sprawdzenie kanału i rejestracja transmisji wykonywane są atomowo, co zapobiega jednoczesnemu uznaniu kanału za wolny przez zgłoszenia obsługiwane w różnych wątkach.
 
-\section{Generowanie ruchu}
+Każda nieudana próba odbioru zapisywana jest w śladzie symulacji wraz z przyczyną utraty: słabym sygnałem, kolizją lub półdupleksem. Pozwala to rozdzielić straty wynikające z zasięgu od strat wynikających ze współdzielenia kanału. Działanie modelu sprawdzono na węzłach \texttt{meshtasticd} w układzie ukrytego węzła. Węzły A i C umieszczono po dwóch stronach węzła B tak, aby nie słyszały się nawzajem, a różnica mocy ich sygnałów u węzła B wynosiła 5,7 dB, czyli mniej niż próg przechwycenia. Przy jednoczesnym nadawaniu w ośmiu rundach węzeł B utracił oba pakiety w sześciu rundach, natomiast w dwóch pozostałych losowe opóźnienie nadania rozsunęło transmisje w czasie. Po wyłączeniu modelu kolizji odebrane zostały wszystkie pakiety.
 
-Ruch w symulacji opisuje plik YAML z harmonogramem. Każda pozycja mówi, kiedy i z którego węzła coś wysłać. Może to być wiadomość do wszystkich, wiadomość do jednego węzła albo traceroute. Generator przekazuje te polecenia węzłom tak, jak zrobiłaby to aplikacja na telefonie. Poza tym węzły nadają swój zwykły ruch, na przykład informacje o sobie i telemetrię. Symulator go nie wycina, bo w prawdziwej sieci ten ruch też zajmuje eter.
+Model zawiera uproszczenia. Synchronizacja odbiornika na preambule opisana jest pojedynczą regułą jedenastu symboli. Wszystkie węzły scenariusza pracują z tym samym współczynnikiem rozpraszania, dlatego nie jest modelowana częściowa ortogonalność różnych wartości \(SF\). Moc zakłócenia przyjmowana jest jako stała przez cały czas trwania pakietu, a emulowany mechanizm CAD wykrywa sygnał przez cały czas jego trwania, a nie wyłącznie w czasie preambuły.
 
-Fading i cieniowanie łączy mają własne seedy, więc da się powtórzyć przebieg z tym samym stanem eteru. Opóźnień losowanych wewnątrz \texttt{meshtasticd} symulator nie kontroluje, więc dwa przebiegi z tymi samymi seedami nie są identyczne co do milisekundy. Dlatego wyniki porównuję na kilku przebiegach, a nie na jednym.
+\section{Generowanie ruchu i zapis śladu}
+
+Ruch w symulacji opisywany jest harmonogramem w formacie YAML. Każda pozycja harmonogramu określa chwilę wysłania, węzeł źródłowy oraz rodzaj akcji: wiadomość rozgłoszeniową, wiadomość do wybranego węzła lub zapytanie traceroute. Generator ruchu przekazuje polecenia węzłom przez ich interfejs klienta, w taki sam sposób, w jaki robi to aplikacja mobilna. Niezależnie od harmonogramu węzły nadają własny ruch, w szczególności informacje o węźle i jego pozycji. Ruch ten nie jest pomijany, ponieważ w rzeczywistej sieci również zajmuje kanał radiowy.
+
+W bazie InfluxDB zapisywane są cztery rodzaje pomiarów:
+
+\begin{itemize}
+\item \textbf{simulation\_run} -- parametry uruchomienia: liczba węzłów, preset, odchylenie fadingu, ustawienia modelu zabudowy,
+\item \textbf{link\_precompute} -- wszystkie skierowane pary węzłów wraz ze stratą terenową, stratą od budynków, cieniowaniem i medianą mocy odbieranej,
+\item \textbf{packet\_ota\_tx} -- każda transmisja: nadajnik, autor pakietu, identyfikator pakietu, typ, limit skoków i informacja, czy jest to retransmisja,
+\item \textbf{link\_attempt} -- każda próba odbioru: para nadajnik--odbiornik, moc, SNR, wylosowany fading, wynik i przyczyna ewentualnej utraty.
+\end{itemize}
+
+Wszystkie pomiary oznaczane są identyfikatorem scenariusza i eksperymentu, co pozwala porównywać przebiegi różniące się liczbą węzłów, parametrami modelu lub obciążeniem sieci.
+
+Fading oraz trwałe cieniowanie łączy posiadają niezależne ziarna generatora liczb losowych (ang. \textit{seed}), dzięki czemu możliwe jest powtórzenie przebiegu z tym samym stanem kanału radiowego. Symulator nie kontroluje natomiast opóźnień losowanych wewnątrz oprogramowania \texttt{meshtasticd}, dlatego dwa przebiegi o tych samych ziarnach nie są identyczne. Z tego względu wnioski formułowane są na podstawie serii przebiegów, a nie pojedynczego uruchomienia. Wpływ tej niedeterministyczności na wyniki oceniono w rozdziale~\ref{chap:weryfikacja}.
