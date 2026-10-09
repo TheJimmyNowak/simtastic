@@ -1,8 +1,9 @@
 \thispagestyle{empty}
 \setlength{\parindent}{0in}
 \setlength{\parskip}{0em}
+\linespread{1.0}\selectfont
 
-\textbf{POLITECHNIKA RZESZOWSKA} \hfill Rzeszów 2025 \\
+\textbf{POLITECHNIKA RZESZOWSKA} \hfill Rzeszów 2026 \\
 \textbf{im. Ignacego Łukasiewicza} \\
 \textbf{WYDZIAŁ MATEMATYKI I FIZYKI STOSOWANEJ} \\
 
@@ -10,36 +11,36 @@
 	\textbf{STRESZCZENIE  PRACY  DYPLOMOWEJ }
 \end{center}
 
-\textbf{Tytuł:} Tytuł pracy \\
-\textbf{Autor:} Imię Nazwisko \\
-\textbf{Promotor:} dr hab. Imię Nazwisko, prof. PRz \\
-\textbf{Słowa klucze:} słowo1, słowo2, słowo3
+\textbf{Tytuł:} Modelowanie dużych sieci LoRa Mesh \\
+\textbf{Autor:} Mikołaj Data \\
+\textbf{Promotor:} dr Krzysztof Pupka \\
+\textbf{Słowa klucze:} LoRa, Meshtastic, sieci kratowe, symulacja, model Longley-Rice, routing
 \\
 
-(Tekst streszczenia w języku polskim)
+Celem pracy było opracowanie symulatora sieci LoRa Mesh opartych na projekcie Meshtastic. Warstwa logiczna sieci, w tym routing i retransmisje, realizowana jest przez rzeczywiste oprogramowanie \texttt{meshtasticd} uruchamiane w kontenerze Docker dla każdego węzła, a symulowana jest wyłącznie warstwa radiowa. Straty propagacyjne wyznaczane są modelem Longley-Rice na podstawie danych SRTM, uzupełnionym o stratę od budynków, cieniowanie i fading. Odwzorowano również kolizje, półdupleks i wykrywanie zajętości kanału. Model łączy skalibrowano na danych z polskiej sieci Meshtastic (lorastats.pl) i oceniono na niezależnym zbiorze testowym: AUC wyniosło 0,79, a tryb przekazania pakietów odwzorowano w 75\% par węzłów. Trasy w symulacji są średnio o 1,5 skoku krótsze niż w sieci rzeczywistej. Działanie symulatora sprawdzono dla sieci liczących do 80 węzłów. Nadaje się on przede wszystkim do porównywania wariantów konfiguracji sieci.
 
 
-% Wstawienie pionowej przestrzeni do połowy strony
-\vfill
-$$\noindent\rule{\textwidth}{2pt}$$
+% Streszczenia PL i EN nie mieszczą się na jednej stronie, więc EN zaczyna się od nowej
+\clearpage
+\thispagestyle{empty}
 
 
 
-\textbf{RZESZOW UNIVERSITY OF TECHNOLOGY} \hfill Rzeszów 2025 \\
+\textbf{RZESZOW UNIVERSITY OF TECHNOLOGY} \hfill Rzeszów 2026 \\
 \textbf{FACULTY OF MATHEMATICS AND APPLIED PHYSICS } \\
 
 \begin{center}
 	\textbf{DIPLOMA THESIS ABSTRACT}
 \end{center}
 
-\textbf{Title:} Tytuł pracy po angielsku\\
-\textbf{Author:} Imię Nazwisko \\
-\textbf{Supervisor:}  Imię Nazwisko, PhD, DSc, Assoc. Prof. \\ %% Angielski zapis stopni/tytułów naukowych promotora 
+\textbf{Title:} Modelling large LoRa Mesh networks\\
+\textbf{Author:} Mikołaj Data \\
+\textbf{Supervisor:} Krzysztof Pupka, PhD \\ %% Angielski zapis stopni/tytułów naukowych promotora 
 
-\textbf{Key words:} słowa klucze po angielsku
+\textbf{Key words:} LoRa, Meshtastic, mesh networks, simulation, Longley-Rice model, routing
 \\
 
-(Tekst streszczenia w języku angielskim)
+The aim of the thesis was to develop a simulator of LoRa Mesh networks based on the Meshtastic project. The logical layer of the network, including routing and retransmissions, is handled by the actual \texttt{meshtasticd} firmware running in a Docker container for each node, while only the radio layer is simulated. Path loss is computed with the Longley-Rice model from SRTM data, extended with building loss, shadowing and fading. Collisions, half-duplex operation and channel activity detection are also modelled. The link model was calibrated on data from the Polish Meshtastic network (lorastats.pl) and evaluated on an independent test set: it achieved an AUC of 0.79, and the forwarding mode was reproduced for 75\% of node pairs. Routes in the simulation are on average 1.5 hops shorter than in the real network. The simulator was tested on networks of up to 80 nodes. It is best suited to comparing network configurations.
 
 \vfill
 

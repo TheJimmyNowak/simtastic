@@ -280,16 +280,16 @@ Dynamiczny rozwój tego rodzaju sieci powoduje potrzebę opracowania narzędzi p
 
 %%%%%%%%%%%%%%%%%%%%% --- Zasadnicza treść rozprawy zaczyna się tutaj --- %%%%%%%%%%%%%%%%%%%%%
 
-        \chapter{Symulacja warstwy radiowej}
+        \chapter{Podstawy transmisji radiowej LoRa}
 
 \section{Modulacja LoRa}
-Jest to autorska technika opatentowana przez firmę Semtech, stosowana w komunikacji radiowej. Wykorzystują ją urządzenia o niskim poborze mocy, często zasilane bateryjnie. LoRa korzysta z pasm ISM (przemysłowych, naukowych i medycznych), które nie wymagają licencji – na przykład 433,05–434,79 MHz oraz 902–928 MHz. Technologia ta wywodzi się z metody modulacji CSS (ang. *Chirp Spread Spectrum*), w której szybkość transmisji danych jest obniżana w celu poprawy czułości. Zgodnie z twierdzeniem Shannona-Hartleya, zwiększenie szerokości pasma poprawia parametry połączenia w odniesieniu do stosunku sygnału do szumu. W systemach wykorzystujących rozpraszanie widma (ang. *Spread Spectrum*) przesyłane dane są mnożone przez sekwencję chipów (zazwyczaj sygnał o częstotliwości znacznie wyższej niż częstotliwość sygnału informacyjnego). Po stronie odbiorczej sygnał jest mnożony przez tę samą sekwencję chipów, co pozwala na odzyskanie oryginalnych danych. W przeciwieństwie do standardowej komunikacji z rozpraszaniem widma, LoRa wykorzystuje sygnał typu „chirp”, czyli sygnał, którego częstotliwość zmienia się w czasie.
+Jest to autorska technika opatentowana przez firmę Semtech, stosowana w komunikacji radiowej. Wykorzystują ją urządzenia o niskim poborze mocy, często zasilane bateryjnie. LoRa korzysta z pasm ISM (przemysłowych, naukowych i medycznych), które nie wymagają licencji – w Europie 433,05–434,79 MHz oraz 863–870 MHz, a w Ameryce Północnej 902–928 MHz. Meshtastic w regionie EU\_868 korzysta z pasma 869,4--869,65 MHz. Technologia ta wywodzi się z metody modulacji CSS (ang. \textit{Chirp Spread Spectrum}), w której szybkość transmisji danych jest obniżana w celu poprawy czułości. Zgodnie z twierdzeniem Shannona-Hartleya, zwiększenie szerokości pasma poprawia parametry połączenia w odniesieniu do stosunku sygnału do szumu. W systemach wykorzystujących rozpraszanie widma (ang. \textit{Spread Spectrum}) przesyłane dane są mnożone przez sekwencję chipów (zazwyczaj sygnał o częstotliwości znacznie wyższej niż częstotliwość sygnału informacyjnego). Po stronie odbiorczej sygnał jest mnożony przez tę samą sekwencję chipów, co pozwala na odzyskanie oryginalnych danych. W przeciwieństwie do standardowej komunikacji z rozpraszaniem widma, LoRa wykorzystuje sygnał typu „chirp”, czyli sygnał, którego częstotliwość zmienia się w czasie.
 
 \begin{itemize}
     \item \textbf{Częstotliwość środkowa} – częstotliwość, wokół której transmitowany jest sygnał.
     \item \textbf{Szerokość pasma} – w technice radiowej (RF) jest to zakres częstotliwości (mierzony w hercach) zajmowany przez sygnał.
-    \item \textbf{Współczynnik rozproszenia (Spreading Factor)} – modulacja LoRa wykorzystuje 6 współczynników rozproszenia; parametr ten wpływa na szybkość transmisji danych, czas zajętości kanału (airtime), czas pracy na baterii oraz czułość odbiornika.
-    \item \textbf{Współczynnik kodowania (Code Rate)} – określa udział bitów niosących użyteczną informację do powtórzonych bitów używanych podczas korekcji błędów.
+    \item \textbf{Współczynnik rozpraszania (ang. \textit{Spreading Factor})} – w typowych zastosowaniach przyjmuje wartości od 7 do 12, a nowsze układy SX126x obsługują również wartości 5 i 6; parametr ten wpływa na szybkość transmisji danych, czas zajętości kanału (airtime), czas pracy na baterii oraz czułość odbiornika.
+    \item \textbf{Współczynnik kodowania (ang. \textit{Code Rate})} – określa udział bitów niosących użyteczną informację do powtórzonych bitów używanych podczas korekcji błędów.
 \end{itemize}
 
 \section{Wpływ doboru parametrów na szybkość transmisji}
@@ -414,8 +414,7 @@ Otrzymana wartość strat propagacyjnych może zostać następnie wykorzystana w
 Do obliczeń używamy numerycznego modelu terenu Shuttle Radar Topography Mission (SRTM).
 
 \cleardoublepage
-\chapter{Modelowanie warstwy logicznej sieci LoRa Mesh} 
-    \addcontentsline{toc}{chapter}{Modelowanie warstwy logicznej sieci LoRa Mesh}
+\chapter{Modelowanie warstwy logicznej sieci LoRa Mesh}
     Sieci LoRa Mesh stanowią rodzaj bezprzewodowych sieci kratowych, w których urządzenia wykorzystujące technologię LoRa mogą nie tylko bezpośrednio komunikować się ze sobą, ale również przekazywać dane pomiędzy kolejnymi węzłami. Dzięki temu informacja może zostać dostarczona do urządzenia docelowego poprzez wiele pośrednich węzłów, co pozwala zwiększyć zasięg sieci bez konieczności stosowania centralnej infrastruktury.
 
     W tego typu sieciach szczególne znaczenie ma warstwa logiczna odpowiedzialna za sposób adresowania urządzeń, przekazywania pakietów oraz wyboru kolejnych węzłów na drodze do odbiorcy. Właściwe zaprojektowanie tych mechanizmów pozwala wykorzystać zalety technologii LoRa, takie jak duży zasięg i niewielkie zapotrzebowanie na energię, przy jednoczesnym tworzeniu rozproszonych i odpornych na awarie sieci komunikacyjnych.
@@ -427,7 +426,7 @@ Do obliczeń używamy numerycznego modelu terenu Shuttle Radar Topography Missio
     
     Drugim rozwijanym rozwiązaniem jest MeshCore, które koncentruje się na budowie zdecentralizowanej infrastruktury komunikacyjnej wykorzystującej LoRa. W architekturze MeshCore występują między innymi urządzenia użytkowników oraz węzły pełniące funkcję przekaźników, umożliwiające zwiększenie zasięgu sieci poprzez wielokrotne przekazywanie danych. Projekt rozwija również rozwiązania pozwalające na pracę urządzeń jako samodzielnych komunikatorów oraz integrację z aplikacjami działającymi na komputerach i urządzeniach mobilnych.
     
-    Oba rozwiązania wykorzystują tę samą podstawową technologię transmisji radiowej, jednak różnią się zastosowanymi mechanizmami warstwy logicznej, sposobem przekazywania pakietów oraz organizacją poszczególnych rodzajów węzłów. Z tego względu stanowią interesujący materiał do analizy i porównania sposobów realizacji komunikacji typu mesh z wykorzystaniem technologii LoRa. W dalszej części pracy przedstawiono wybrane mechanizmy obu rozwiązań, ze szczególnym uwzględnieniem funkcjonowania ich warstwy logicznej.
+    Oba rozwiązania wykorzystują tę samą podstawową technologię transmisji radiowej, jednak różnią się zastosowanymi mechanizmami warstwy logicznej, sposobem przekazywania pakietów oraz organizacją poszczególnych rodzajów węzłów. Niniejsza praca dotyczy sieci Meshtastic, która jest obecnie najbardziej rozpowszechnionym z tych rozwiązań i dla której dostępne są publiczne dane z działającej sieci, wykorzystane w rozdziale~\ref{chap:weryfikacja} do weryfikacji symulatora. W dalszej części pracy przedstawiono mechanizmy warstwy logicznej sieci Meshtastic.
     
     \section{Podstawowe zasady działania routingu w sieciach Meshtastic}
 
@@ -438,7 +437,7 @@ Do obliczeń używamy numerycznego modelu terenu Shuttle Radar Topography Missio
     Istotnym elementem routingu Meshtastic jest mechanizm zarządzania retransmisjami. Węzły mogą przekazywać odebrane pakiety dalej, jednak nie każdy odebrany pakiet musi zostać ponownie wysłany. Decyzja o retransmisji zależy między innymi od rodzaju pakietu, jego parametrów oraz informacji posiadanych przez dany węzeł. Wykorzystywane są również mechanizmy pozwalające ograniczyć wielokrotne przekazywanie tego samego pakietu przez różne węzły.
     
     Aby zoptymalizować przekazywanie pakietów i tworzenie infrastruktury do sieci Meshtastic wprowadzano mechanizm ról. Są one przypisywane poszczególnym węzłom i wpływają na sposób przekazywania pakietów.
-\begin{longtable}{|p{2.3cm}|p{6.7cm}|p{6.7cm}|}
+\begin{longtable}{|p{3.6cm}|p{5.2cm}|p{5.2cm}|}
 \caption{Porównanie ról w sieci Meshtastic \cite{meshtastic_device}}
     \label{tabela1}\\
     \hline
@@ -473,7 +472,13 @@ Do obliczeń używamy numerycznego modelu terenu Shuttle Radar Topography Missio
     Węzeł infrastrukturalny, który retransmituje pakiet jednokrotnie, ale dopiero po pozostałych węzłach. Pozwala zapewnić dodatkowe pokrycie lokalnych skupisk urządzeń. &
     Stosowany do pokrywania obszarów pozbawionych zasięgu lub zwiększenia niezawodności komunikacji w lokalnych skupiskach węzłów. \\
     \hline
+    REPEATER &
+    Węzeł infrastrukturalny, który wyłącznie retransmituje pakiety i nie nadaje własnych informacji o węźle, pozycji ani telemetrii. Nie jest widoczny na liście węzłów. Rola oznaczona jako przestarzała w wersji 2.7.11 oprogramowania. &
+    Zwiększanie zasięgu sieci przy minimalnym narzucie. Nadal spotykana w działającej sieci, w nowych instalacjach zastępowana rolą ROUTER. \\
+    \hline
 \end{longtable}
+
+Symulator pozwala przypisać węzłom role CLIENT, CLIENT\_MUTE, ROUTER oraz REPEATER. Są to role decydujące o sposobie retransmisji pakietów, a więc o działaniu routingu. Role różniące się od nich głównie okresem rozgłaszania informacji lub momentem retransmisji, takie jak ROUTER\_LATE, odwzorowywane są w symulacji jako ROUTER, a pozostałe role klienckie jako CLIENT.
 
 \section{Problemy związane z symulacją warstwy logicznej sieci LoRa Mesh}
 
@@ -536,23 +541,6 @@ MeshtasticD jest natywnym programem binarnym służącym do uruchamiania Meshtas
     %-----------------------------------------------------------------------------------
 	
 
-    \begin{landscape}	
-        \begin{table}[hbt!]
-        \section*{Dodatek A. Pozioma tabela}
-        \addcontentsline{toc}{chapter}{Dodatek A}
-        \caption{Pozioma tabela}
-		\begin{tabularx}{24.5cm}[h]{c|c c c c c c c c c c c*{5}Y}	
-			\hline
-			\diagbox{$k$}{$n$} & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11& 12& 13& 14& 15\\
-			\hline
-			$1$ & 0& \textcolor{red}{1}& \textcolor{red}{1}& \textcolor{red}{2}& \textcolor{red}{3}& \textcolor{red}{5}& \textcolor{red}{8}& \textcolor{red}{13}& \textcolor{red}{21}& \textcolor{red}{34}& \textcolor{red}{55}& \textcolor{red}{89}& \textcolor{red}{144}&\textcolor{red}{233}& \textcolor{red}{377}& \textcolor{red}{610}\\
-			\hline
-			$2$  & \textcolor{orange}{0}&	\textcolor{orange}{1}&	\textcolor{orange}{2}&	\textcolor{orange}{5}&	\textcolor{orange}{12}&	\textcolor{orange}{29}&	\textcolor{orange}{70}&	\textcolor{orange}{169}&	\textcolor{orange}{408}&	\textcolor{orange}{985}&	\textcolor{orange}{2378} & \textcolor{orange}{5741}& \textcolor{orange}{13860} & \textcolor{orange}{33461}& \textcolor{orange}{80782}& \textcolor{orange}{195025}\\
-			\hline
-		\end{tabularx}
-        \label{tab:pozioma}
-        \end{table}
-	\end{landscape}
     
 
     %-----------------------------------------------------------------------------------

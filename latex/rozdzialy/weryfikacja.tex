@@ -105,7 +105,7 @@ gdzie \(p_o\) oznacza obserwowaną zgodność, a \(p_e\) zgodność oczekiwaną 
 
 Kampania testowa została przeprowadzona na danych pobranych z serwisu lorastats.pl 8 października 2026 roku. Do oceny wykorzystano wyłącznie raporty zarejestrowane od 7 października, godz. 17:35, do 8 października, godz. 8:11, czyli po wykonaniu kalibracji. Zbiór testowy obejmuje około 678 tysięcy raportów odbioru od 357 bramek i jest niezależny w czasie od zbioru kalibracyjnego. Pozycje i parametry węzłów wyznaczono na podstawie pełnych 24 godzin danych, ponieważ są to cechy węzłów, a nie wynik obserwacji łączy.
 
-Kryteria wyboru spełniło 187 węzłów, w tym 17 bramek będących obserwatorami radiowymi. Uzyskano 156 par nadawca--bramka z wiarygodną obserwacją, z czego w 18 parach łącze istniało. Dodatkowo 58 par węzłów wymienia się nawzajem w pakietach \texttt{NEIGHBORINFO\_APP}. Pary te zawierają wyłącznie obserwacje łączy istniejących, dlatego posłużyły tylko do oceny czułości modelu. Z węzłów zbudowano sześć klastrów przedstawionych w tabeli~\ref{tab:klastry}.
+Kryteria wyboru spełniło 187 węzłów, w tym 17 bramek będących obserwatorami radiowymi. Uzyskano 156 par nadawca--bramka z wiarygodną obserwacją, z czego w 18 parach łącze istniało. Dodatkowo 58 par węzłów wymienia się nawzajem w pakietach \texttt{NEIGHBORINFO\_APP}. Pary te zawierają wyłącznie obserwacje łączy istniejących, dlatego posłużyły tylko do oceny czułości modelu. Z węzłów zbudowano sześć klastrów przedstawionych w tabeli~\ref{tab:klastry}. Kolumna \textit{Łącza bezpośrednie} podaje liczbę par, w których łącze istnieje zgodnie z kryteriami z poprzedniej sekcji, również na podstawie pakietów \texttt{NEIGHBORINFO\_APP}.
 
 \begin{table}[ht]
 \centering
@@ -190,7 +190,9 @@ Zależność wyników od odległości przedstawiono na rysunku~\ref{rys:t1_odl},
 
 \section{Ocena routingu}
 
-Wyniki oceny routingu dla 87 par nadawca--bramka w sześciu klastrach przedstawiono w tabeli~\ref{tab:routing}. Metryki wyznaczono na podstawie wyników zebranych z dziesięciu przebiegów każdego wariantu.
+Wyniki oceny routingu dla 87 par nadawca--bramka w sześciu klastrach przedstawiono w tabeli~\ref{tab:routing}. Metryki wyznaczono na podstawie obserwacji połączonych z dziesięciu przebiegów każdego wariantu: dla każdej pary tryb przekazania i liczba skoków wyznaczane są ze wszystkich pakietów odebranych w tych przebiegach. Wyjątkiem jest odsetek par osiągniętych w przebiegu, który uśredniono po przebiegach.
+
+Tryb bezpośredni pary oznacza, że większość pakietów nadawcy dociera do bramki bez retransmisji. Jest to warunek silniejszy niż samo istnienie łącza, dlatego w sieci tryb bezpośredni ma 7 par, a nie 10 jak w tabeli~\ref{tab:klastry}. Dwie pary mają łącze potwierdzone wyłącznie pakietami \texttt{NEIGHBORINFO\_APP}, a w jednej odbiory bezpośrednie stanowią mniejszość.
 
 \begin{table}[ht]
 \centering
@@ -268,7 +270,7 @@ Niższy odsetek odbiorów dla pakietów nadawanych samodzielnie przez węzły, t
 
 \section{Wrażliwość routingu na stratę otoczenia}
 
-W celu oceny, w jakim stopniu skracanie tras wynika z przeszacowania liczby łączy, wykonano przebiegi dla strat otoczenia równych 10, 20 i 35 dB przy cieniowaniu \(\sigma_{\ell} = 20\) dB. Wyniki przedstawiono na rysunku~\ref{rys:t6} oraz w tabeli~\ref{tab:t6}.
+W celu oceny, w jakim stopniu skracanie tras wynika z przeszacowania liczby łączy, wykonano przebiegi dla strat otoczenia równych 10, 20 i 35 dB przy cieniowaniu \(\sigma_{\ell} = 20\) dB. Wyniki przedstawiono na rysunku~\ref{rys:t6} oraz w tabeli~\ref{tab:t6}. W odróżnieniu od tabeli~\ref{tab:routing} metryki wyznaczono osobno dla każdego ziarna, a następnie podano ich średnią i odchylenie standardowe. Pojedynczy przebieg dostarcza mniej pakietów dla każdej pary, dlatego tryb przekazania wyznaczony z jednego przebiegu jest bardziej podatny na losowe odchylenia. Z tego powodu zgodność dla straty 27 dB wynosi tu 0,66, a nie 0,75 jak przy połączeniu wszystkich przebiegów.
 
 \begin{table}[ht]
 \centering
