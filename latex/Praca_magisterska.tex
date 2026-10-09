@@ -256,8 +256,8 @@
 %                      SPIS TREŚCI
 %---------------------------------------------------------------------------------
 	\renewcommand{\contentsname}{\LARGE Spis treści}
-    \tableofcontents
     \setcounter{tocdepth}{1}
+    \tableofcontents
     %\setcounter{page}{1} %numeracja stron od 1
 	%\thispagestyle{headings}
     \cleardoublepage %wymusza rozpoczęcie nowego rozdziału na stronie nieparzystej (prawej); dodaje pustą stronę, jeśli potrzeba
@@ -290,7 +290,7 @@ Jest to autorska technika opatentowana przez firmę Semtech, stosowana w komunik
     \item \textbf{Częstotliwość środkowa} – częstotliwość, wokół której transmitowany jest sygnał.
     \item \textbf{Szerokość pasma} – w technice radiowej (RF) jest to zakres częstotliwości (mierzony w hercach) zajmowany przez sygnał.
     \item \textbf{Współczynnik rozpraszania (ang. \textit{Spreading Factor})} – w typowych zastosowaniach przyjmuje wartości od 7 do 12, a nowsze układy SX126x obsługują również wartości 5 i 6; parametr ten wpływa na szybkość transmisji danych, czas zajętości kanału (airtime), czas pracy na baterii oraz czułość odbiornika.
-    \item \textbf{Współczynnik kodowania (ang. \textit{Code Rate})} – określa udział bitów niosących użyteczną informację do powtórzonych bitów używanych podczas korekcji błędów.
+    \item \textbf{Współczynnik kodowania (ang. \textit{Code Rate})} – określa stosunek liczby bitów niosących użyteczną informację do łącznej liczby bitów po dodaniu nadmiarowych bitów korekcji błędów; zapis 4/5 oznacza, że na każde 4 bity danych przesyłanych jest 5 bitów.
 \end{itemize}
 
 \section{Wpływ doboru parametrów na szybkość transmisji}
@@ -319,7 +319,7 @@ Przybliżoną szybkość transmisji danych można określić za pomocą zależno
         R_b = SF \cdot \frac{BW}{2^{SF}} \cdot CR
     \end{equation}
 
-gdzie \(R_b\) oznacza szybkość transmisji bitów, a \(CR\) współczynnik kodowania stosowany przez mechanizm korekcji błędów. Wartość \(CR\) może przyjmować wartości od \(4/5\) do \(4/8\). Zwiększenie wartości \(CR\) oznacza zastosowanie większej ilości nadmiarowych danych przeznaczonych do korekcji błędów, co poprawia odporność transmisji, lecz jednocześnie zmniejsza efektywną szybkość przesyłania danych.
+gdzie \(R_b\) oznacza szybkość transmisji bitów, a \(CR\) współczynnik kodowania stosowany przez mechanizm korekcji błędów. Wartość \(CR\) może przyjmować wartości od \(4/5\) do \(4/8\). Zmniejszenie wartości \(CR\), na przykład z \(4/5\) do \(4/8\), oznacza zastosowanie większej ilości nadmiarowych danych przeznaczonych do korekcji błędów, co poprawia odporność transmisji, lecz jednocześnie zmniejsza efektywną szybkość przesyłania danych.
 
 W modulacji LoRa każdy symbol jest reprezentowany przez \(2^{SF}\) chipów. Szybkość transmisji chipów określana jest zależnością:
 
@@ -388,11 +388,11 @@ Właściwy dobór elementów sprzętowych może zatem znacząco wpłynąć na rz
 
 Straty ścieżki (ang. \textit{path loss}) określają zmniejszenie mocy sygnału radiowego podczas jego propagacji pomiędzy nadajnikiem a odbiornikiem. Ich wartość zależy między innymi od częstotliwości, odległości pomiędzy urządzeniami, wysokości anten oraz charakterystyki środowiska, w którym odbywa się transmisja. Dokładne określenie strat propagacyjnych jest istotnym elementem modelowania sieci radiowych, ponieważ bezpośrednio wpływa na przewidywany poziom sygnału odbieranego przez poszczególne węzły.
 
-Modele strat ścieżki można podzielić na trzy podstawowe grupy: modele statystyczne, deterministyczne oraz kombinatoryczne. Modele statystyczne opracowywane są na podstawie wyników pomiarów przeprowadzonych w określonym środowisku. Ich zaletą jest stosunkowo niewielka złożoność obliczeniowa, jednak ich dokładność może znacząco zmniejszać się w przypadku zastosowania w środowisku różniącym się od tego, dla którego zostały opracowane.
+Modele strat ścieżki można podzielić na trzy podstawowe grupy: modele statystyczne, deterministyczne oraz hybrydowe (półempiryczne). Modele statystyczne opracowywane są na podstawie wyników pomiarów przeprowadzonych w określonym środowisku. Ich zaletą jest stosunkowo niewielka złożoność obliczeniowa, jednak ich dokładność może znacząco zmniejszać się w przypadku zastosowania w środowisku różniącym się od tego, dla którego zostały opracowane.
 
 Modele deterministyczne wykorzystują fizyczne prawa opisujące propagację fal radiowych. Uwzględniają między innymi geometrię obszaru, przeszkody znajdujące się pomiędzy nadajnikiem i odbiornikiem oraz zjawiska takie jak odbicie, dyfrakcja czy rozpraszanie. Pozwalają dzięki temu dokładniej odwzorować rzeczywiste warunki propagacji, jednak zazwyczaj wymagają większej liczby danych wejściowych i większej mocy obliczeniowej.
 
-Modele kombinatoryczne łączą elementy podejścia deterministycznego i statystycznego. Wykorzystują informacje dotyczące fizycznych warunków propagacji, takich jak profil terenu, a jednocześnie uwzględniają statystyczny charakter niektórych zjawisk występujących podczas transmisji. Pozwala to uzyskać kompromis pomiędzy dokładnością modelowania a złożonością obliczeniową, co jest szczególnie istotne w przypadku symulacji obejmujących dużą liczbę węzłów.
+Modele hybrydowe łączą elementy podejścia deterministycznego i statystycznego. Wykorzystują informacje dotyczące fizycznych warunków propagacji, takich jak profil terenu, a jednocześnie uwzględniają statystyczny charakter niektórych zjawisk występujących podczas transmisji. Pozwala to uzyskać kompromis pomiędzy dokładnością modelowania a złożonością obliczeniową, co jest szczególnie istotne w przypadku symulacji obejmujących dużą liczbę węzłów.
 
 Do prostych modeli strat ścieżki należy model propagacji w wolnej przestrzeni. Zakłada on brak przeszkód pomiędzy nadajnikiem i odbiornikiem oraz brak wpływu odbić i innych zjawisk charakterystycznych dla rzeczywistego środowiska. Straty w wolnej przestrzeni można wyznaczyć za pomocą wzoru \eqref{L_FS} Model ten jest prosty i charakteryzuje się bardzo małą złożonością obliczeniową, jednak nie uwzględnia rzeczywistego ukształtowania terenu ani znajdujących się na drodze sygnału przeszkód.
 
@@ -406,16 +406,14 @@ Istotną cechą modelu Longley-Rice jest możliwość wykorzystania rzeczywisteg
 
 Do podstawowych danych wejściowych modelu Longley-Rice należą między innymi częstotliwość pracy, odległość pomiędzy nadajnikiem i odbiornikiem, wysokości anten oraz profil terenu. Dodatkowo model może uwzględniać parametry środowiska, takie jak przewodność i przenikalność elektryczna powierzchni, współczynnik załamania atmosferycznego oraz charakterystykę klimatyczną obszaru. Wynikiem obliczeń jest między innymi przewidywana wartość strat propagacyjnych, która może następnie zostać wykorzystana do wyznaczenia mocy sygnału docierającego do odbiornika.
 
-W niniejszej pracy do modelowania strat propagacyjnych wykorzystany zostanie model Longley-Rice. Jego wybór wynika przede wszystkim z charakteru symulowanej sieci. Węzły sieci LoRa mogą być rozmieszczone na znacznym obszarze, a ich wzajemna widoczność radiowa może być silnie uzależniona od ukształtowania terenu. Zastosowanie modelu uwzględniającego profil terenu pozwala zatem uzyskać bardziej realistyczne wyniki niż wykorzystanie wyłącznie modelu propagacji w wolnej przestrzeni lub prostego modelu empirycznego.
+W niniejszej pracy do modelowania strat propagacyjnych wykorzystano model Longley-Rice. Jego wybór wynika przede wszystkim z charakteru symulowanej sieci. Węzły sieci LoRa mogą być rozmieszczone na znacznym obszarze, a ich wzajemna widoczność radiowa może być silnie uzależniona od ukształtowania terenu. Zastosowanie modelu uwzględniającego profil terenu pozwala zatem uzyskać bardziej realistyczne wyniki niż wykorzystanie wyłącznie modelu propagacji w wolnej przestrzeni lub prostego modelu empirycznego.
 
 Wybór modelu Longley-Rice pozwala również zachować rozsądny kompromis pomiędzy dokładnością odwzorowania warunków propagacyjnych a złożonością obliczeniową symulatora. Jest to szczególnie istotne w przypadku sieci mesh, w których liczba potencjalnych połączeń pomiędzy węzłami rośnie wraz z liczbą urządzeń. Dla każdej pary węzłów możliwe jest wyznaczenie strat propagacyjnych, a następnie, na podstawie mocy nadajnika, zysków anten oraz czułości odbiornika, określenie możliwości nawiązania połączenia radiowego.
 
-Otrzymana wartość strat propagacyjnych może zostać następnie wykorzystana w obliczeniach budżetu łącza ze wzoru \eqref{linkbudget}. W pracy korzystam z już gotowej biblioteki itmlogic \cite{oughton2020}.
-
-Do obliczeń używamy numerycznego modelu terenu Shuttle Radar Topography Mission (SRTM).
+Otrzymana wartość strat propagacyjnych może zostać następnie wykorzystana w obliczeniach budżetu łącza ze wzoru \eqref{linkbudget}. W pracy wykorzystano gotową implementację modelu w bibliotece itmlogic \cite{oughton2020}, a profil terenu wyznaczany jest na podstawie numerycznego modelu terenu Shuttle Radar Topography Mission (SRTM) \cite{farr2007}.
 
 \cleardoublepage
-\chapter{Modelowanie warstwy logicznej sieci LoRa Mesh}
+\chapter{Warstwa logiczna sieci LoRa Mesh}
     Sieci LoRa Mesh stanowią rodzaj bezprzewodowych sieci kratowych, w których urządzenia wykorzystujące technologię LoRa mogą nie tylko bezpośrednio komunikować się ze sobą, ale również przekazywać dane pomiędzy kolejnymi węzłami. Dzięki temu informacja może zostać dostarczona do urządzenia docelowego poprzez wiele pośrednich węzłów, co pozwala zwiększyć zasięg sieci bez konieczności stosowania centralnej infrastruktury.
 
     W tego typu sieciach szczególne znaczenie ma warstwa logiczna odpowiedzialna za sposób adresowania urządzeń, przekazywania pakietów oraz wyboru kolejnych węzłów na drodze do odbiorcy. Właściwe zaprojektowanie tych mechanizmów pozwala wykorzystać zalety technologii LoRa, takie jak duży zasięg i niewielkie zapotrzebowanie na energię, przy jednoczesnym tworzeniu rozproszonych i odpornych na awarie sieci komunikacyjnych.
@@ -431,13 +429,13 @@ Do obliczeń używamy numerycznego modelu terenu Shuttle Radar Topography Missio
     
     \section{Podstawowe zasady działania routingu w sieciach Meshtastic}
 
-    Routing w sieci Meshtastic opiera się na zdecentralizowanym przekazywaniu pakietów pomiędzy znajdującymi się w swoim zasięgu węzłami. W przeciwieństwie do klasycznych sieci, w których stosuję się topologię gwiazdy (np. w LoraWAN), w Meshtastic poszczególne urządzenia samodzielnie podejmują decyzję o przekazaniu odebranego pakietu. Pozwala to na tworzenie sieci, których działanie nie jest uzależnione od pojedynczego punktu infrastruktury.
+    Routing w sieci Meshtastic opiera się na zdecentralizowanym przekazywaniu pakietów pomiędzy znajdującymi się w swoim zasięgu węzłami. W przeciwieństwie do klasycznych sieci, w których stosuje się topologię gwiazdy (np. w LoRaWAN), w Meshtastic poszczególne urządzenia samodzielnie podejmują decyzję o przekazaniu odebranego pakietu. Pozwala to na tworzenie sieci, których działanie nie jest uzależnione od pojedynczego punktu infrastruktury.
     
-    Węzeł wysyłający wiadomość nie musi znajdować się bezpośrednio w zasięgu urządzenia docelowego. Pakiet może zostać przekazany przez kolejne węzły, dzięki czemu komunikacja jest możliwa również pomiędzy urządzeniami oddalonymi od siebie o więcej niż jeden skok (ang. \textit{hop}). Liczba możliwych przekazań pakietu jest ograniczana za pomocą mechanizmu TTL (ang. \textit{Time To Live}), który zapobiega nieograniczonemu krążeniu pakietów w sieci.
+    Węzeł wysyłający wiadomość nie musi znajdować się bezpośrednio w zasięgu urządzenia docelowego. Pakiet może zostać przekazany przez kolejne węzły, dzięki czemu komunikacja jest możliwa również pomiędzy urządzeniami oddalonymi od siebie o więcej niż jeden skok (ang. \textit{hop}). Liczba możliwych przekazań pakietu ograniczana jest limitem skoków (ang. \textit{hop limit}), zmniejszanym przy każdej retransmisji. Mechanizm ten, analogiczny do pola TTL (ang. \textit{Time To Live}) w sieciach IP, zapobiega nieograniczonemu krążeniu pakietów w sieci.
     
     Istotnym elementem routingu Meshtastic jest mechanizm zarządzania retransmisjami. Węzły mogą przekazywać odebrane pakiety dalej, jednak nie każdy odebrany pakiet musi zostać ponownie wysłany. Decyzja o retransmisji zależy między innymi od rodzaju pakietu, jego parametrów oraz informacji posiadanych przez dany węzeł. Wykorzystywane są również mechanizmy pozwalające ograniczyć wielokrotne przekazywanie tego samego pakietu przez różne węzły.
     
-    Aby zoptymalizować przekazywanie pakietów i tworzenie infrastruktury do sieci Meshtastic wprowadzano mechanizm ról. Są one przypisywane poszczególnym węzłom i wpływają na sposób przekazywania pakietów.
+    Aby zoptymalizować przekazywanie pakietów i tworzenie infrastruktury do sieci Meshtastic wprowadzono mechanizm ról. Są one przypisywane poszczególnym węzłom i wpływają na sposób przekazywania pakietów.
 \begin{longtable}{|p{3.6cm}|p{5.2cm}|p{5.2cm}|}
 \caption{Porównanie ról w sieci Meshtastic \cite{meshtastic_device}}
     \label{tabela1}\\
@@ -493,8 +491,8 @@ Złożoność symulacji rośnie wraz z liczbą węzłów oraz liczbą możliwych
 
 Ponadto sam protokół dynamicznie się zmienia co powoduje, że w realnych zastosowaniach węzły mogą mieć różne wersje standardu i sposobu działania co tworzy kolejne utrudnienia.
 
-\section{Symulacja węzła z użyciem MeshtasticD}
-MeshtasticD jest natywnym programem binarnym służącym do uruchamiania Meshtastic na urządzeniach wyposażonych w radiomodemy komunikujące się za pośrednictwem interfejsu SPI lub USB. Jest dostępny dla systemów macOS oraz Linux. Dzięki wykorzystaniu modułu simradio można uruchomić program bez potrzeby posiadania fizycznego radiomodułu, dzięki czemu symulację działania pojedynczego węzła można uruchomić w izolowanym środowisku np. z użyciem kontenera Docker.
+\section{Symulacja węzła z użyciem meshtasticd}
+Program \texttt{meshtasticd} jest natywnym programem binarnym służącym do uruchamiania Meshtastic na urządzeniach wyposażonych w radiomodemy komunikujące się za pośrednictwem interfejsu SPI lub USB. Jest dostępny dla systemów macOS oraz Linux. Dzięki wykorzystaniu modułu SimRadio można uruchomić program bez potrzeby posiadania fizycznego radiomodułu, dzięki czemu symulację działania pojedynczego węzła można uruchomić w izolowanym środowisku np. z użyciem kontenera Docker.
 
 \cleardoublepage
 \input{rozdzialy/implementacja}

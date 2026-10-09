@@ -14,7 +14,7 @@
 \textbf{Tytuł:} Modelowanie dużych sieci LoRa Mesh \\
 \textbf{Autor:} Mikołaj Data \\
 \textbf{Promotor:} dr Krzysztof Pupka \\
-\textbf{Słowa klucze:} LoRa, Meshtastic, sieci kratowe, symulacja, model Longley-Rice, routing
+\textbf{Słowa kluczowe:} LoRa, Meshtastic, sieci kratowe, symulacja, model Longley-Rice, routing
 \\
 
 Celem pracy było opracowanie symulatora sieci LoRa Mesh opartych na projekcie Meshtastic. Warstwa logiczna sieci, w tym routing i retransmisje, realizowana jest przez rzeczywiste oprogramowanie \texttt{meshtasticd} uruchamiane w kontenerze Docker dla każdego węzła, a symulowana jest wyłącznie warstwa radiowa. Straty propagacyjne wyznaczane są modelem Longley-Rice na podstawie danych SRTM, uzupełnionym o stratę od budynków, cieniowanie i fading. Odwzorowano również kolizje, półdupleks i wykrywanie zajętości kanału. Model łączy skalibrowano na danych z polskiej sieci Meshtastic (lorastats.pl) i oceniono na niezależnym zbiorze testowym: AUC wyniosło 0,79, a tryb przekazania pakietów odwzorowano w 75\% par węzłów. Trasy w symulacji są średnio o 1,5 skoku krótsze niż w sieci rzeczywistej. Działanie symulatora sprawdzono dla sieci liczących do 80 węzłów. Nadaje się on przede wszystkim do porównywania wariantów konfiguracji sieci.
