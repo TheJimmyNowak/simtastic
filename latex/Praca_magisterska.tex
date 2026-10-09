@@ -531,7 +531,7 @@ W obu trybach dostępne są wyłącznie modele propagacji niezależne od terenu:
 
 \subsection{Narzędzia do planowania zasięgu}
 
-Rzeczywiste ukształtowanie terenu uwzględnia natomiast Meshtastic Site Planner \cite{site_planner}. Narzędzie to wyznacza mapę zasięgu pojedynczego węzła modelem Longley-Rice w implementacji z programu SPLAT!, na podstawie danych wysokościowych SRTM, a zabudowę opisuje jedną średnią wysokością przeszkód. Wynikiem jest mapa przewidywanego poziomu sygnału, przydatna przy wyborze lokalizacji węzła. Narzędzie nie symuluje jednak sieci: nie uwzględnia retransmisji, routingu ani współdzielenia kanału przez wiele nadajników.
+Rzeczywiste ukształtowanie terenu uwzględnia natomiast Meshtastic Site Planner \cite{site_planner}. Narzędzie to wyznacza mapę zasięgu pojedynczego węzła modelem Longley-Rice w implementacji z programu SPLAT! \cite{splat}, na podstawie danych wysokościowych SRTM, a zabudowę opisuje jedną średnią wysokością przeszkód. Wynikiem jest mapa przewidywanego poziomu sygnału, przydatna przy wyborze lokalizacji węzła. Narzędzie nie symuluje jednak sieci: nie uwzględnia retransmisji, routingu ani współdzielenia kanału przez wiele nadajników.
 
 \subsection{Podsumowanie}
 
@@ -581,37 +581,38 @@ Program \texttt{meshtasticd} jest natywnym programem binarnym służącym do uru
     \addcontentsline{toc}{chapter}{Bibliografia}
     \bibitem{shannon1949} C. E. Shannon, „Communication in the presence of noise”, \emph{Proceedings of the IRE}, vol. 37, nr 1, s. 10--21, 1949, doi: 10.1109/JRPROC.1949.232969.
     \bibitem{semtech_an1200_22} Semtech Corporation, \emph{LoRa Modulation Basics}, nota aplikacyjna AN1200.22, wersja 2, maj 2015.
-    \bibitem{okumura1968} Y. Okumura, E. Ohmori, T. Kawano, K. Fukuda, „Field strength and its variability in VHF and UHF land-mobile radio service”, \emph{Review of the Electrical Communication Laboratory}, vol. 16, s. 825--873, 1968.
+    \bibitem{okumura1968} Y. Okumura, E. Ohmori, T. Kawano, K. Fukuda, „Field strength and its variability in VHF and UHF land-mobile radio service”, \emph{Review of the Electrical Communication Laboratory}, vol. 16, nr 9--10, s. 825--873, 1968.
     \bibitem{hata1980} M. Hata, „Empirical formula for propagation loss in land mobile radio services”, \emph{IEEE Transactions on Vehicular Technology}, vol. 29, nr 3, s. 317--325, 1980, doi: 10.1109/T-VT.1980.23859.
-    \bibitem{cost231} European Commission, \emph{COST Action 231: Digital mobile radio towards future generation systems. Final report}, EUR 18957, Luksemburg, 1999.
-    \bibitem{longley1968} A. G. Longley, P. L. Rice, \emph{Prediction of tropospheric radio transmission loss over irregular terrain. A computer method -- 1968}, ESSA Technical Report ERL 79-ITS 67, U.S. Department of Commerce, Boulder, 1968.
-    \bibitem{oughton2020} E. Oughton, T. Russell, J. Johnson, C. Yardim, J. Kusuma, „itmlogic: The Irregular Terrain Model by Longley and Rice”, \emph{Journal of Open Source Software}, vol. 5, nr 2266, 2020, doi: 10.21105/joss.02266.
+    \bibitem{cost231} European Commission, DG XIII, \emph{COST Action 231: Digital mobile radio towards future generation systems. Final report}, Bruksela, 1999, ISBN 92-828-5416-7.
+    \bibitem{longley1968} A. G. Longley, P. L. Rice, \emph{Prediction of tropospheric radio transmission loss over irregular terrain. A computer method -- 1968}, ESSA Technical Report ERL 79-ITS 67, U.S. Department of Commerce, Environmental Science Services Administration, Boulder, lipiec 1968, doi: 10.70220/d3k87mv1.
+    \bibitem{oughton2020} E. Oughton, T. Russell, J. Johnson, C. Yardim, J. Kusuma, „itmlogic: The Irregular Terrain Model by Longley and Rice”, \emph{Journal of Open Source Software}, vol. 5, nr 51, art. 2266, 2020, doi: 10.21105/joss.02266.
     \bibitem{farr2007} T. G. Farr i in., „The Shuttle Radar Topography Mission”, \emph{Reviews of Geophysics}, vol. 45, nr 2, RG2004, 2007, doi: 10.1029/2005RG000183.
     \bibitem{meshtastic_device} Meshtastic, \emph{Device Configuration}. Dostępne online: \url{https://meshtastic.org/docs/configuration/radio/device/} [dostęp: 03.09.2026].
-    \bibitem{bor2016} M. Bor, U. Roedig, T. Voigt, J. M. Alonso, „Do LoRa Low-Power Wide-Area Networks Scale?”, w: \emph{Proceedings of the 19th ACM International Conference on Modeling, Analysis and Simulation of Wireless and Mobile Systems (MSWiM '16)}, ACM, 2016, doi: 10.1145/2988287.2989163.
-    \bibitem{magrin2017} D. Magrin, M. Centenaro, L. Vangelista, „Performance evaluation of LoRa networks in a smart city scenario”, w: \emph{2017 IEEE International Conference on Communications (ICC)}, Paryż, 2017, doi: 10.1109/ICC.2017.7996384.
-    \bibitem{slabicki2018} M. Slabicki, G. Premsankar, M. Di Francesco, „Adaptive configuration of LoRa networks for dense IoT deployments”, w: \emph{NOMS 2018 -- IEEE/IFIP Network Operations and Management Symposium}, Taipei, 2018, doi: 10.1109/NOMS.2018.8406255.
+    \bibitem{bor2016} M. Bor, U. Roedig, T. Voigt, J. M. Alonso, „Do LoRa Low-Power Wide-Area Networks Scale?”, w: \emph{Proceedings of the 19th ACM International Conference on Modeling, Analysis and Simulation of Wireless and Mobile Systems (MSWiM '16)}, ACM, s. 59--67, 2016, doi: 10.1145/2988287.2989163.
+    \bibitem{magrin2017} D. Magrin, M. Centenaro, L. Vangelista, „Performance evaluation of LoRa networks in a smart city scenario”, w: \emph{2017 IEEE International Conference on Communications (ICC)}, Paryż, s. 1--7, 2017, doi: 10.1109/ICC.2017.7996384.
+    \bibitem{slabicki2018} M. Slabicki, G. Premsankar, M. Di Francesco, „Adaptive configuration of LoRa networks for dense IoT deployments”, w: \emph{NOMS 2018 -- IEEE/IFIP Network Operations and Management Symposium}, Taipei, s. 1--9, 2018, doi: 10.1109/NOMS.2018.8406255.
     \bibitem{meshtasticator} Meshtastic, \emph{Meshtasticator -- Discrete-event and interactive simulator for Meshtastic}. Dostępne online: \url{https://github.com/meshtastic/Meshtasticator} [dostęp: 09.10.2026].
     \bibitem{site_planner} Meshtastic, \emph{Meshtastic Site Planner}. Dostępne online: \url{https://github.com/meshtastic/meshtastic-site-planner} [dostęp: 09.10.2026].
+    \bibitem{splat} J. A. Magliacane, \emph{SPLAT! An RF Signal Propagation, Loss, And Terrain analysis tool}, wersja 1.4.2. Dostępne online: \url{https://www.qsl.net/kd2bd/splat.html} [dostęp: 09.10.2026].
     \bibitem{fastapi} S. Ramírez, \emph{FastAPI}. Dostępne online: \url{https://fastapi.tiangolo.com/} [dostęp: 09.10.2026].
     \bibitem{repozytorium} M. Data, \emph{Symulator sieci Meshtastic -- kod źródłowy}. Dostępne online: \url{https://github.com/TheJimmyNowak/inzynierka-ver-2} [dostęp: 09.10.2026].
     \bibitem{leaflet} V. Agafonkin i in., \emph{Leaflet -- an open-source JavaScript library for interactive maps}. Dostępne online: \url{https://leafletjs.com/} [dostęp: 09.10.2026].
     \bibitem{influxdb} InfluxData, \emph{InfluxDB 2 Documentation}. Dostępne online: \url{https://docs.influxdata.com/influxdb/v2/} [dostęp: 09.10.2026].
     \bibitem{gugik_lod1} Główny Urząd Geodezji i Kartografii, \emph{Modele 3D budynków LoD1}, dane otwarte, licencja CC BY 4.0. Dostępne online: \url{https://opendata.geoportal.gov.pl/InneDane/Budynki3D/LOD1/2024/} [dostęp: 07.10.2026].
-    \bibitem{itu_p526} International Telecommunication Union, \emph{Recommendation ITU-R P.526-15: Propagation by diffraction}, Genewa, 2019.
+    \bibitem{itu_p526} International Telecommunication Union, \emph{Recommendation ITU-R P.526-15: Propagation by diffraction}, Genewa, październik 2019.
     \bibitem{sx1262} Semtech Corporation, \emph{SX1261/2 Long Range, Low Power, sub-GHz RF Transceiver}, karta katalogowa. Dostępne online: \url{https://www.semtech.com/products/wireless-rf/lora-connect/sx1262} [dostęp: 09.10.2026].
-    \bibitem{etsi300220} ETSI, \emph{EN 300 220-2 V3.2.1: Short Range Devices (SRD) operating in the frequency range 25 MHz to 1 000 MHz; Part 2: Harmonised Standard for access to radio spectrum for non specific radio equipment}, 2018.
-    \bibitem{semtech_an1200_13} Semtech Corporation, \emph{LoRa Modem Designer's Guide}, nota aplikacyjna AN1200.13, wersja 1, lipiec 2013.
+    \bibitem{etsi300220} ETSI, \emph{EN 300 220-2 V3.2.1: Short Range Devices (SRD) operating in the frequency range 25 MHz to 1 000 MHz; Part 2: Harmonised Standard covering the essential requirements of article 3.2 of Directive 2014/53/EU for access to radio spectrum for non specific radio equipment}, czerwiec 2018.
+    \bibitem{semtech_an1200_13} Semtech Corporation, \emph{SX1272/3/6/7/8: LoRa Modem Designer's Guide}, nota aplikacyjna AN1200.13, wersja 1, lipiec 2013.
     \bibitem{meshtastic_firmware} Meshtastic, \emph{Meshtastic Firmware}, wersja 2.7.15, pliki \texttt{src/platform/portduino/SimRadio.cpp}, \texttt{src/mesh/RadioInterface.cpp}, \texttt{src/mesh/SX126xInterface.cpp}. Dostępne online: \url{https://github.com/meshtastic/firmware} [dostęp: 07.10.2026].
     \bibitem{lorastats} lorastats.pl, \emph{Statystyki polskiej sieci Meshtastic}, API danych z ostatnich 24 godzin. Dostępne online: \url{https://lorastats.pl/API} [dostęp: 07.10.2026].
     \bibitem{meshtastic_protobufs} Meshtastic, \emph{Protobufs}, plik \texttt{meshtastic/mesh.proto}, pole \texttt{Position.precision\_bits}. Dostępne online: \url{https://github.com/meshtastic/protobufs} [dostęp: 07.10.2026].
-    \bibitem{efron1993} B. Efron, R. J. Tibshirani, \emph{An Introduction to the Bootstrap}, Chapman \& Hall, Nowy Jork, 1993.
-    \bibitem{brier1950} G. W. Brier, „Verification of forecasts expressed in terms of probability”, \emph{Monthly Weather Review}, vol. 78, nr 1, s. 1--3, 1950.
-    \bibitem{naeini2015} M. P. Naeini, G. F. Cooper, M. Hauskrecht, „Obtaining well calibrated probabilities using Bayesian binning”, w: \emph{Proceedings of the 29th AAAI Conference on Artificial Intelligence}, s. 2901--2907, 2015.
-    \bibitem{cox1958} D. R. Cox, „Two further applications of a model for binary regression”, \emph{Biometrika}, vol. 45, nr 3--4, s. 562--565, 1958.
+    \bibitem{efron1993} B. Efron, R. J. Tibshirani, \emph{An Introduction to the Bootstrap}, Chapman \& Hall, Nowy Jork, 1993, doi: 10.1201/9780429246593.
+    \bibitem{brier1950} G. W. Brier, „Verification of forecasts expressed in terms of probability”, \emph{Monthly Weather Review}, vol. 78, nr 1, s. 1--3, 1950, doi: 10.1175/1520-0493(1950)078<0001:VOFEIT>2.0.CO;2.
+    \bibitem{naeini2015} M. P. Naeini, G. F. Cooper, M. Hauskrecht, „Obtaining well calibrated probabilities using Bayesian binning”, w: \emph{Proceedings of the 29th AAAI Conference on Artificial Intelligence}, vol. 29, nr 1, s. 2901--2907, 2015, doi: 10.1609/aaai.v29i1.9602.
+    \bibitem{cox1958} D. R. Cox, „Two further applications of a model for binary regression”, \emph{Biometrika}, vol. 45, nr 3--4, s. 562--565, 1958, doi: 10.1093/biomet/45.3-4.562.
     \bibitem{cohen1960} J. Cohen, „A coefficient of agreement for nominal scales”, \emph{Educational and Psychological Measurement}, vol. 20, nr 1, s. 37--46, 1960, doi: 10.1177/001316446002000104.
     \bibitem{wilcoxon1945} F. Wilcoxon, „Individual comparisons by ranking methods”, \emph{Biometrics Bulletin}, vol. 1, nr 6, s. 80--83, 1945, doi: 10.2307/3001968.
-    \bibitem{abramson1970} N. Abramson, „The ALOHA System: another alternative for computer communications”, w: \emph{Proceedings of the Fall Joint Computer Conference (AFIPS '70)}, s. 281--285, 1970, doi: 10.1145/1478462.1478502.
+    \bibitem{abramson1970} N. Abramson, „The ALOHA System: another alternative for computer communications”, w: \emph{Proceedings of the November 17--19, 1970, Fall Joint Computer Conference (AFIPS '70 Fall)}, s. 281--285, 1970, doi: 10.1145/1478462.1478502.
     \bibitem{kleinrock1975} L. Kleinrock, F. A. Tobagi, „Packet switching in radio channels: Part I -- Carrier sense multiple-access modes and their throughput-delay characteristics”, \emph{IEEE Transactions on Communications}, vol. 23, nr 12, s. 1400--1416, 1975, doi: 10.1109/TCOM.1975.1092768.
 	\end{thebibliography}
     \cleardoublepage
