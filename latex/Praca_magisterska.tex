@@ -491,6 +491,57 @@ Złożoność symulacji rośnie wraz z liczbą węzłów oraz liczbą możliwych
 
 Ponadto sam protokół dynamicznie się zmienia co powoduje, że w realnych zastosowaniach węzły mogą mieć różne wersje standardu i sposobu działania co tworzy kolejne utrudnienia.
 
+\section{Istniejące narzędzia symulacyjne}
+
+Dostępne narzędzia do symulacji sieci LoRa można podzielić na trzy grupy: symulatory sieci LoRaWAN o topologii gwiazdy, narzędzia przeznaczone dla sieci Meshtastic oraz narzędzia do planowania zasięgu pojedynczych stacji.
+
+\subsection{Symulatory sieci LoRaWAN}
+
+Jednym z pierwszych i najczęściej wykorzystywanych symulatorów jest LoRaSim, opracowany przez Bora i współautorów \cite{bor2016}. Jest to symulator zdarzeń dyskretnych napisany w języku Python, przeznaczony do badania skalowalności sieci LoRa. Straty propagacyjne opisywane są modelem logarytmicznym zależnym od odległości, a o kolizji dwóch pakietów decydują ich częstotliwość, współczynnik rozpraszania, wzajemne położenie w czasie oraz różnica mocy, co pozwala odwzorować efekt przechwycenia. Reguły kolizji z LoRaSim zostały przejęte przez wiele późniejszych narzędzi, w tym przez symulator opracowany w niniejszej pracy.
+
+Moduł LoRaWAN dla symulatora ns-3, opracowany na Uniwersytecie w Padwie \cite{magrin2017}, odwzorowuje pełny stos protokołu LoRaWAN: urządzenia końcowe klasy A, bramki z modelem układu odbiorczego obsługującego wiele kanałów jednocześnie oraz serwer sieciowy z mechanizmem adaptacyjnego doboru szybkości transmisji (ADR). Zawiera modele propagacji przeznaczone dla środowiska miejskiego oraz model zużycia energii. Autorzy wykorzystali go do pokazania, że sieć LoRaWAN obejmująca kilka bramek może obsługiwać rzędu \(10^4\) urządzeń. Podobny zakres funkcji oferuje FLoRa \cite{slabicki2018}, oparta na symulatorze OMNeT++ i bibliotece INET, która umożliwia symulację sieci od urządzenia końcowego do serwera sieciowego, wraz z mechanizmem ADR i bilansem energii węzłów.
+
+Narzędzia te dotyczą jednak sieci o topologii gwiazdy, w której urządzenia komunikują się bezpośrednio z bramkami, a pakiety nie są przekazywane pomiędzy urządzeniami. Nie odwzorowują więc retransmisji, limitu skoków ani mechanizmów charakterystycznych dla sieci mesh.
+
+\subsection{Meshtasticator}
+
+Narzędziem przeznaczonym bezpośrednio dla sieci Meshtastic jest Meshtasticator, rozwijany w ramach projektu Meshtastic \cite{meshtasticator}. Udostępnia on dwa tryby pracy.
+
+Tryb symulacji zdarzeń dyskretnych odtwarza w języku Python działanie części radiowej oprogramowania węzła. Jego kod wywodzi się z symulatora LoRaSim. Zaimplementowano w nim między innymi zasady rozgłaszania pakietów (pakiet jest retransmitowany, jeżeli jego limit skoków jest większy od zera, a węzeł nie usłyszał wcześniej retransmisji tego pakietu), losowe lub zależne od SNR opóźnienia nadania oraz retransmisje w przypadku braku niejawnego potwierdzenia. Takie podejście pozwala szybko symulować duże sieci, jednak wymaga ponownej implementacji mechanizmów oprogramowania, które zmieniają się wraz z kolejnymi jego wersjami.
+
+Tryb interaktywny uruchamia wiele instancji rzeczywistego oprogramowania Meshtastic w wersji przeznaczonej dla systemu Linux, z symulowanym modułem radiowym. Skrypt symulatora łączy się z węzłami przez TCP i przekazuje każdą transmisję do węzłów, które według modelu propagacji mogą ją odebrać. Kolizje nie są domyślnie uwzględniane. Ich emulację można włączyć opcją kompilacji oprogramowania węzła. Węzły rozmieszczane są losowo lub ręcznie na wykresie, z określeniem roli, limitu skoków, wysokości i zysku anteny.
+
+W obu trybach dostępne są wyłącznie modele propagacji niezależne od terenu: model logarytmiczny, cztery warianty modelu Okumura-Hata (dla miast małych i średnich, obszarów metropolitalnych, podmiejskich i wiejskich) oraz dwa modele 3GPP dla makrokomórek. Dokumentacja projektu określa je jako przybliżone oszacowanie. Węzły nie mają współrzędnych geograficznych, dlatego nie jest możliwe odtworzenie istniejącej sieci na rzeczywistym terenie.
+
+\subsection{Narzędzia do planowania zasięgu}
+
+Rzeczywiste ukształtowanie terenu uwzględnia natomiast Meshtastic Site Planner \cite{site_planner}. Narzędzie to wyznacza mapę zasięgu pojedynczego węzła modelem Longley-Rice w implementacji z programu SPLAT!, na podstawie danych wysokościowych SRTM, a zabudowę opisuje jedną średnią wysokością przeszkód. Wynikiem jest mapa przewidywanego poziomu sygnału, przydatna przy wyborze lokalizacji węzła. Narzędzie nie symuluje jednak sieci: nie uwzględnia retransmisji, routingu ani współdzielenia kanału przez wiele nadajników.
+
+\subsection{Podsumowanie}
+
+Porównanie omówionych narzędzi przedstawiono w tabeli~\ref{tab:symulatory}.
+
+\begin{table}[ht]
+\centering
+\caption{Porównanie narzędzi do symulacji sieci LoRa}
+\label{tab:symulatory}
+\footnotesize
+\begin{tabular}{|>{\raggedright\arraybackslash}p{2.6cm}|>{\raggedright\arraybackslash}p{1.7cm}|>{\raggedright\arraybackslash}p{2.6cm}|>{\raggedright\arraybackslash}p{2.6cm}|>{\raggedright\arraybackslash}p{1.9cm}|}
+\hline
+\textbf{Narzędzie} & \textbf{Topologia} & \textbf{Warstwa logiczna} & \textbf{Propagacja} & \textbf{Kolizje} \\
+\hline
+LoRaSim & gwiazda & brak (ALOHA) & logarytmiczna & tak \\ \hline
+ns-3 LoRaWAN & gwiazda & LoRaWAN & modele miejskie & tak \\ \hline
+FLoRa & gwiazda & LoRaWAN & logarytmiczna & tak \\ \hline
+Meshtasticator (zdarzenia dyskretne) & mesh & reimplementacja Meshtastic & empiryczne, bez terenu & tak \\ \hline
+Meshtasticator (tryb interaktywny) & mesh & oprogramowanie Meshtastic & empiryczne, bez terenu & opcjonalnie \\ \hline
+Meshtastic Site Planner & -- & brak & ITM, teren SRTM & nie \\ \hline
+Symulator z niniejszej pracy & mesh & oprogramowanie Meshtastic & ITM, teren SRTM, budynki LoD1 & tak \\ \hline
+\end{tabular}
+\end{table}
+
+Żadne z dostępnych narzędzi nie łączy rzeczywistego oprogramowania węzłów sieci mesh z modelem propagacji uwzględniającym ukształtowanie terenu i zabudowę. Symulatory LoRaWAN nie odwzorowują przekazywania pakietów pomiędzy węzłami, Meshtasticator nie pozwala odtworzyć sieci na rzeczywistym terenie, a Meshtastic Site Planner nie symuluje działania sieci. W dokumentacji tych narzędzi nie opisano również porównania wyników z danymi z działającej sieci Meshtastic. Symulator opracowany w niniejszej pracy wykorzystuje ten sam mechanizm symulowanego modułu radiowego co tryb interaktywny Meshtasticatora, opisany w kolejnej sekcji. Rozszerza go o model propagacji Longley-Rice z danymi o terenie i budynkach, model współdzielenia kanału realizowany poza oprogramowaniem węzła, rozmieszczanie węzłów na mapie oraz kalibrację na danych z rzeczywistej sieci.
+
 \section{Symulacja węzła z użyciem meshtasticd}
 Program \texttt{meshtasticd} jest natywnym programem binarnym służącym do uruchamiania Meshtastic na urządzeniach wyposażonych w radiomodemy komunikujące się za pośrednictwem interfejsu SPI lub USB. Jest dostępny dla systemów macOS oraz Linux. Dzięki wykorzystaniu modułu SimRadio można uruchomić program bez potrzeby posiadania fizycznego radiomodułu, dzięki czemu symulację działania pojedynczego węzła można uruchomić w izolowanym środowisku np. z użyciem kontenera Docker.
 
@@ -519,6 +570,10 @@ Program \texttt{meshtasticd} jest natywnym programem binarnym służącym do uru
     \bibitem{gugik_lod1} Główny Urząd Geodezji i Kartografii, \emph{Modele 3D budynków LoD1}, dane otwarte, licencja CC BY 4.0. Dostępne online: \url{https://opendata.geoportal.gov.pl/InneDane/Budynki3D/LOD1/2024/} [dostęp: 07.10.2026].
     \bibitem{itu_p526} International Telecommunication Union, \emph{Recommendation ITU-R P.526-15: Propagation by diffraction}, Genewa, 2019.
     \bibitem{meshtastic_firmware} Meshtastic, \emph{Meshtastic Firmware}, wersja 2.7.15, pliki \texttt{src/platform/portduino/SimRadio.cpp}, \texttt{src/mesh/RadioInterface.cpp}, \texttt{src/mesh/SX126xInterface.cpp}. Dostępne online: \url{https://github.com/meshtastic/firmware} [dostęp: 07.10.2026].
+    \bibitem{magrin2017} D. Magrin, M. Centenaro, L. Vangelista, „Performance evaluation of LoRa networks in a smart city scenario”, w: \emph{2017 IEEE International Conference on Communications (ICC)}, Paryż, 2017, doi: 10.1109/ICC.2017.7996384.
+    \bibitem{slabicki2018} M. Slabicki, G. Premsankar, M. Di Francesco, „Adaptive configuration of LoRa networks for dense IoT deployments”, w: \emph{NOMS 2018 -- IEEE/IFIP Network Operations and Management Symposium}, Taipei, 2018, doi: 10.1109/NOMS.2018.8406255.
+    \bibitem{meshtasticator} Meshtastic, \emph{Meshtasticator -- Discrete-event and interactive simulator for Meshtastic}. Dostępne online: \url{https://github.com/meshtastic/Meshtasticator} [dostęp: 09.10.2026].
+    \bibitem{site_planner} Meshtastic, \emph{Meshtastic Site Planner}. Dostępne online: \url{https://github.com/meshtastic/meshtastic-site-planner} [dostęp: 09.10.2026].
 	\end{thebibliography}
     \cleardoublepage
 
