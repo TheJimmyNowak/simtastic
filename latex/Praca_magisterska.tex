@@ -276,6 +276,19 @@ Technologie radiowe rozwijają się w dynamicznym tempie, a wraz z nimi pojawiaj
 W ostatnich latach rozwijane są również rozwiązania wykorzystujące LoRa do tworzenia rozproszonych sieci typu mesh, w których poszczególne urządzenia mogą pełnić jednocześnie funkcję nadawczą, odbiorczą oraz pośredniczyć w przekazywaniu danych pomiędzy innymi węzłami. Rozwiązania tego typu zaczęły zyskiwać na znaczeniu około 2020 roku, wraz z pojawieniem się pierwszych projektów umożliwiających budowę praktycznych sieci LoRa mesh.
 
 Dynamiczny rozwój tego rodzaju sieci powoduje potrzebę opracowania narzędzi pozwalających na analizę ich funkcjonowania w różnych warunkach. Szczególnie istotna jest możliwość badania wpływu liczby i rozmieszczenia węzłów, parametrów transmisji oraz topologii sieci na jej wydajność i niezawodność. W tym celu przydatne są środowiska symulacyjne umożliwiające odwzorowanie zachowania sieci przed jej rzeczywistym wdrożeniem. Dostępność dedykowanych narzędzi pozwalających na symulację specyficznych mechanizmów współczesnych sieci LoRa mesh jest jednak ograniczona, co stanowi podstawę do podjęcia niniejszego tematu.
+
+Celem pracy jest opracowanie symulatora sieci LoRa Mesh opartych na projekcie Meshtastic, pozwalającego badać działanie sieci złożonych z wielu węzłów rozmieszczonych na rzeczywistym terenie, oraz ocena wiarygodności uzyskiwanych wyników przez porównanie ich z działającą siecią. Podstawowym założeniem jest rozdzielenie obu warstw sieci. Warstwa logiczna, czyli routing, retransmisje i role węzłów, nie jest ponownie implementowana, lecz realizowana przez rzeczywiste oprogramowanie Meshtastic uruchamiane w trybie symulacji. Symulowana jest wyłącznie warstwa radiowa: propagacja sygnału z uwzględnieniem ukształtowania terenu i zabudowy, zjawiska losowe w kanale radiowym oraz współdzielenie kanału przez wiele nadajników.
+
+Zakres pracy obejmuje:
+\begin{itemize}
+\item omówienie podstaw transmisji LoRa, modeli propagacji oraz mechanizmów warstwy logicznej sieci Meshtastic,
+\item przegląd istniejących narzędzi do symulacji sieci LoRa,
+\item projekt i implementację symulatora, obejmującego model łączy oparty na modelu Longley-Rice i danych o budynkach, model współdzielenia kanału, uruchamianie węzłów w kontenerach Docker, interfejs użytkownika z mapą oraz zapis śladu symulacji,
+\item kalibrację modelu łączy na danych z polskiej sieci Meshtastic oraz ocenę modelu łączy i routingu na niezależnym zbiorze danych,
+\item sprawdzenie modelu współdzielenia kanału, powtarzalności wyników i skalowalności symulatora.
+\end{itemize}
+
+Praca składa się z czterech rozdziałów. W rozdziale pierwszym przedstawiono podstawy modulacji LoRa, zależności pomiędzy parametrami transmisji, budżet łącza radiowego oraz modele strat ścieżki, w tym model Longley-Rice. Rozdział drugi dotyczy warstwy logicznej sieci LoRa Mesh: opisano w nim rozwiązania Meshtastic i MeshCore, zasady routingu i role węzłów w sieci Meshtastic, problemy związane z symulacją takich sieci oraz istniejące narzędzia symulacyjne. W rozdziale trzecim opisano implementację symulatora: jego architekturę, konfigurację węzłów, obliczanie łączy, odwzorowanie eteru, model kolizji oraz generowanie ruchu. Rozdział czwarty przedstawia weryfikację symulatora na danych z działającej sieci, obejmującą kalibrację modelu łączy, ocenę modelu łączy i routingu, testy współdzielenia kanału i skalowalności. Pracę zamyka podsumowanie uzyskanych wyników wraz z ograniczeniami symulatora i kierunkami dalszych prac.
 	
     \cleardoublepage %
 
@@ -550,6 +563,9 @@ Program \texttt{meshtasticd} jest natywnym programem binarnym służącym do uru
 
 \cleardoublepage
 \input{rozdzialy/weryfikacja}
+
+\cleardoublepage
+\input{rozdzialy/zakonczenie}
 
     \cleardoublepage
     
