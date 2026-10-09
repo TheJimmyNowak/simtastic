@@ -174,7 +174,7 @@ Kolejne backendy w trakcie kampanii uruchamia `scripts/validation/backend_noclea
 
 ## Praca dyplomowa
 
-Źródła LaTeX są w `latex/` (plik główny `Praca_magisterska.tex`, rozdziały w `latex/rozdzialy/`).
+Źródła LaTeX są w `latex/` (plik główny `Praca_inzynierska.tex`, rozdziały w `latex/rozdzialy/`).
 
 ```bash
 cd latex && latexmk        # PDF w latex/build/

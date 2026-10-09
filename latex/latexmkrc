@@ -1,5 +1,5 @@
 # latexmk: `latexmk` (jednorazowo), `latexmk -pvc` (podgląd na żywo), `latexmk -c` (sprzątanie)
-@default_files = ('Praca_magisterska.tex');   # zmień, jeśli plik główny nazywa się inaczej
+@default_files = ('Praca_inzynierska.tex');   # zmień, jeśli plik główny nazywa się inaczej
 
 # Silnik: 1 = pdfLaTeX (domyślny w Overleaf), 4 = LuaLaTeX, 5 = XeLaTeX
 $pdf_mode = 1;
