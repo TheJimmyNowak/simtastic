@@ -76,7 +76,9 @@ logi firmware: `docker logs sim-<scenariusz>-node-0`.
 
 ## Scenariusz badawczy
 
-1. Utwórz scenariusz (≥2 węzły, `hop_limit` per węzeł, rola ROUTER/CLIENT).
+1. Utwórz scenariusz (≥2 węzły, `hop_limit` i rola per węzeł). Dostępne są wszystkie role
+   firmware, które `meshtasticd` 2.7.15 zachowuje po restarcie; przestarzałe `REPEATER` i
+   `ROUTER_CLIENT` firmware zapisuje jako `CLIENT`, więc symulator ich nie oferuje.
 2. **Precompute ITM** — macierz `data/scenarios/{id}/link_matrix.npz`.
 3. **Start** — kontenery węzłów + RadioGateway.
 4. Opcjonalnie traffic: `scenarios/example_traffic.yaml` w `POST /start` z `{"traffic_config": "/app/scenarios/example_traffic.yaml"}`.
@@ -137,6 +139,46 @@ PYTHONPATH=backend .venv/bin/python scripts/e2e_line_test.py
 - Każdy węzeł to osobny kontener; węzły są konfigurowane równolegle (`SIM_PROVISION_WORKERS`).
 - `connectivity_threshold_dbm` — pomija pary poza zasięgiem mediany w runtime.
 - Pełny zapis `link_attempt` do Influx (N×(N-1) na broadcast).
+
+## Kampania walidacyjna (rozdział 4 pracy)
+
+Porównanie symulatora z siecią rzeczywistą na danych z [lorastats.pl](https://lorastats.pl/API).
+Kryteria wyboru węzłów i par opisuje [docs/validation_lorastats.md](docs/validation_lorastats.md),
+a przebieg i wyniki kampanii z 8.10.2026 [docs/test_campaign.md](docs/test_campaign.md).
+
+```bash
+export PYTHONPATH=backend:scripts/validation
+D=data/lorastats/2026-10-08            # zrzut API: <region>_PacketsRaw.json, <region>_Nodes.json
+
+# 1. dekodowanie raportów odbioru (tylko raporty po kalibracji)
+.venv/bin/python scripts/validation/lorastats_dataset.py $D --since 2026-10-07T17:35
+# 2. węzły z dokładną pozycją, obserwacje łączy, klastry
+.venv/bin/python scripts/validation/lorastats_pairs.py $D/dataset_2026-10-07T1735.json
+# 3. ocena modelu łączy (T1), bez uruchamiania symulacji
+.venv/bin/python scripts/validation/link_eval.py $D/clusters_2026-10-07T1735.json
+
+# 4. plan przebiegów: routing | medium | sweep | scale
+.venv/bin/python scripts/validation/make_plan.py routing $D/clusters_2026-10-07T1735.json -o data/campaign/plan_routing.json
+# 5. kilka backendów na hoście (bez Dockera dla backendu) i kampania przez REST API
+scripts/validation/backends.sh 8101 8102 8103
+.venv/bin/python scripts/validation/campaign.py data/campaign/plan_routing.json \
+    --out data/campaign --backends 8101,8102,8103
+# 6. analiza (T2–T6) i rysunki do latex/rysunki/
+.venv/bin/python scripts/validation/routing_eval.py data/campaign $D/clusters_2026-10-07T1735.json
+.venv/bin/python scripts/validation/figures.py $D/links_2026-10-07T1735.json data/campaign/report.json
+```
+
+Przebiegi już zapisane w `data/campaign/runs/` są pomijane, więc kampanię można wznowić.
+Kolejne backendy w trakcie kampanii uruchamia `scripts/validation/backend_noclean.py <port>`
+(zwykły backend przy starcie usuwa kontenery wszystkich instancji).
+
+## Praca dyplomowa
+
+Źródła LaTeX są w `latex/` (plik główny `Praca_magisterska.tex`, rozdziały w `latex/rozdzialy/`).
+
+```bash
+cd latex && latexmk        # PDF w latex/build/
+```
 
 ## Zmienne środowiskowe
 

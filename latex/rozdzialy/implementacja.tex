@@ -13,13 +13,13 @@ Symulator składa się z kilku współpracujących ze sobą komponentów urucham
 \label{rys:architektura}
 \end{figure}
 
-Centralnym elementem jest backend napisany w języku Python z wykorzystaniem biblioteki FastAPI. Udostępnia on interfejs REST, za pomocą którego tworzone są scenariusze, obliczane są łącza radiowe oraz uruchamiana i zatrzymywana jest symulacja. Scenariusz zawiera opis środowiska radiowego, czyli preset modemu, parametry modelu propagacji, parametry zjawisk losowych i ustawienia modelu kolizji, a także listę węzłów. Dla każdego węzła określane są między innymi współrzędne geograficzne, wysokość anteny nad terenem, zyski anten nadawczej i odbiorczej, limit skoków oraz rola w sieci. Scenariusze zapisywane są w plikach YAML, co pozwala na ich łatwe przenoszenie i odtwarzanie eksperymentów.
+Centralnym elementem jest backend napisany w języku Python z wykorzystaniem biblioteki FastAPI \cite{fastapi}. Kod źródłowy symulatora wraz ze skryptami kampanii testowej opisanej w rozdziale~\ref{chap:weryfikacja} dostępny jest w repozytorium \cite{repozytorium}. Udostępnia on interfejs REST, za pomocą którego tworzone są scenariusze, obliczane są łącza radiowe oraz uruchamiana i zatrzymywana jest symulacja. Scenariusz zawiera opis środowiska radiowego, czyli preset modemu, parametry modelu propagacji, parametry zjawisk losowych i ustawienia modelu kolizji, a także listę węzłów. Dla każdego węzła określane są między innymi współrzędne geograficzne, wysokość anteny nad terenem, zyski anten nadawczej i odbiorczej, limit skoków oraz rola w sieci. Scenariusze zapisywane są w plikach YAML, co pozwala na ich łatwe przenoszenie i odtwarzanie eksperymentów.
 
 Każdy symulowany węzeł jest osobnym kontenerem, w którym uruchamiany jest program \texttt{meshtasticd} w trybie \texttt{-s}. W tym trybie oprogramowanie nie korzysta z fizycznego modułu radiowego, lecz z modułu SimRadio. Każda transmisja, którą węzeł chciałby wysłać w eter, jest przekazywana do klienta połączonego z węzłem przez TCP w postaci pakietu typu \texttt{SIMULATOR\_APP}, zawierającego oryginalny numer portu i dane pakietu. Komunikacja w przeciwnym kierunku przebiega analogicznie. Pakiet \texttt{SIMULATOR\_APP} przesłany do węzła jest przez niego traktowany jako pakiet odebrany drogą radiową, razem z podanymi wartościami RSSI i SNR. Mechanizm ten stanowi podstawę działania symulatora, ponieważ pozwala w pełni kontrolować, które węzły i z jaką mocą odbierają daną transmisję.
 
 Kontenery węzłów oznaczane są etykietami zawierającymi identyfikator scenariusza. Pozwala to na jednoznaczne usuwanie kontenerów po zakończeniu symulacji, a także po nieoczekiwanym zatrzymaniu backendu. Każdy węzeł rozpoczyna pracę z czystym systemem plików, dzięki czemu kolejne uruchomienia scenariusza nie dziedziczą stanu poprzednich, na przykład zapamiętanej listy sąsiadów.
 
-Interfejs użytkownika jest aplikacją React z mapą Leaflet. Prowadzi on użytkownika przez kolejne etapy przygotowania eksperymentu: konfigurację środowiska, rozmieszczenie węzłów na mapie, obliczenie łączy, uruchomienie symulacji oraz analizę przesłanych pakietów. Szczegółowy ślad symulacji zapisywany jest w bazie szeregów czasowych InfluxDB, a przygotowane pulpity w programie Grafana prezentują między innymi odsetek dostarczonych pakietów, przebieg retransmisji wybranej wiadomości oraz porównanie przebiegów o różnej liczbie węzłów.
+Interfejs użytkownika jest aplikacją React z mapą Leaflet \cite{leaflet}. Prowadzi on użytkownika przez kolejne etapy przygotowania eksperymentu: konfigurację środowiska, rozmieszczenie węzłów na mapie, obliczenie łączy, uruchomienie symulacji oraz analizę przesłanych pakietów. Szczegółowy ślad symulacji zapisywany jest w bazie szeregów czasowych InfluxDB \cite{influxdb}, a przygotowane pulpity w programie Grafana prezentują między innymi odsetek dostarczonych pakietów, przebieg retransmisji wybranej wiadomości oraz porównanie przebiegów o różnej liczbie węzłów.
 
 \section{Konfiguracja węzłów}
 
@@ -74,7 +74,7 @@ Na podstawie budżetu łącza \eqref{linkbudget} wyznaczana jest mediana mocy od
 P_{RX} = P_{TX} + G_{TX} + G_{RX} - L
 \end{equation}
 
-Domyślna moc nadajnika wynosi 22 dBm. Jest to maksymalna moc układu SX1262 stosowanego w większości popularnych urządzeń, z której Meshtastic korzysta domyślnie. Limit mocy dla regionu EU\_868 wynosi 27 dBm, jednak jest on osiągany przez niewielką część węzłów.
+Domyślna moc nadajnika wynosi 22 dBm. Jest to maksymalna moc układu SX1262 \cite{sx1262} stosowanego w większości popularnych urządzeń, z której Meshtastic korzysta domyślnie. Limit mocy w podpaśmie 869,4--869,65 MHz, z którego korzysta Meshtastic w regionie EU\_868, wynosi 27 dBm \cite{etsi300220}, jednak jest on osiągany przez niewielką część węzłów.
 
 Poziom szumu oraz czułość odbiornika wyznaczane są na podstawie zależności:
 
@@ -82,7 +82,7 @@ Poziom szumu oraz czułość odbiornika wyznaczane są na podstawie zależności
 N = -174 + 10\log_{10}(BW) + NF, \qquad S_{RX} = N + SNR_{min}(SF)
 \end{equation}
 
-gdzie \(BW\) oznacza szerokość pasma w hercach, \(NF = 6\) dB współczynnik szumów odbiornika, a \(SNR_{min}\) minimalny stosunek sygnału do szumu, przy którym możliwa jest demodulacja dla danego współczynnika rozpraszania. Dla pasma 250 kHz poziom szumu wynosi \(-114\) dBm, a dla presetu MEDIUM\_FAST (SF9, \(SNR_{min} = -12{,}5\) dB) czułość odbiornika wynosi \(-126{,}5\) dBm.
+gdzie \(BW\) oznacza szerokość pasma w hercach, \(NF = 6\) dB współczynnik szumów odbiornika, a \(SNR_{min}\) minimalny stosunek sygnału do szumu, przy którym możliwa jest demodulacja dla danego współczynnika rozpraszania \cite{sx1262}. Dla pasma 250 kHz poziom szumu wynosi \(-114\) dBm, a dla presetu MEDIUM\_FAST (SF9, \(SNR_{min} = -12{,}5\) dB) czułość odbiornika wynosi \(-126{,}5\) dBm.
 
 Wynikiem tego etapu jest macierz łączy zawierająca dla każdej pary węzłów między innymi odległość, stratę terenową, stratę od budynków, wartość cieniowania oraz medianę mocy odbieranej. Macierz zapisywana jest na dysku razem z odciskiem (skrótem SHA-256) wszystkich danych wejściowych, które wpływają na propagację. Zmiana dowolnego z tych parametrów powoduje unieważnienie macierzy i konieczność ponownego obliczenia łączy, natomiast zmiana parametrów niezwiązanych z propagacją, takich jak nazwa węzła czy seed fadingu, nie wymaga ponownych obliczeń. Do symulacji przekazywane są wyłącznie pary, dla których mediana mocy odbieranej przekracza próg łączności, domyślnie \(-140\) dBm, co ogranicza liczbę obliczeń w czasie działania symulacji.
 

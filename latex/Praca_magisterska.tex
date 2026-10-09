@@ -264,6 +264,9 @@
     %\clearpage  %kończy bieżącą stronę i wypisuje wszystkie zaległe elementy (np. rysunki, tabele), ale nie wymusza rozpoczęcia nowego rozdziału na stronie nieparzystej
     %\newpage %Wymusza przejście do nowej strony, ale nie kończy otwartych elementów
 
+\input{wykaz_skrotow}
+    \cleardoublepage
+
 %---------------------------------------------------------------------------------
 %                      WSTĘP
 %---------------------------------------------------------------------------------
@@ -297,7 +300,7 @@ Praca składa się z czterech rozdziałów. W rozdziale pierwszym przedstawiono 
         \chapter{Podstawy transmisji radiowej LoRa}
 
 \section{Modulacja LoRa}
-Jest to autorska technika opatentowana przez firmę Semtech, stosowana w komunikacji radiowej. Wykorzystują ją urządzenia o niskim poborze mocy, często zasilane bateryjnie. LoRa korzysta z pasm ISM (przemysłowych, naukowych i medycznych), które nie wymagają licencji – w Europie 433,05–434,79 MHz oraz 863–870 MHz, a w Ameryce Północnej 902–928 MHz. Meshtastic w regionie EU\_868 korzysta z pasma 869,4--869,65 MHz. Technologia ta wywodzi się z metody modulacji CSS (ang. \textit{Chirp Spread Spectrum}), w której szybkość transmisji danych jest obniżana w celu poprawy czułości. Zgodnie z twierdzeniem Shannona-Hartleya, zwiększenie szerokości pasma poprawia parametry połączenia w odniesieniu do stosunku sygnału do szumu. W systemach wykorzystujących rozpraszanie widma (ang. \textit{Spread Spectrum}) przesyłane dane są mnożone przez sekwencję chipów (zazwyczaj sygnał o częstotliwości znacznie wyższej niż częstotliwość sygnału informacyjnego). Po stronie odbiorczej sygnał jest mnożony przez tę samą sekwencję chipów, co pozwala na odzyskanie oryginalnych danych. W przeciwieństwie do standardowej komunikacji z rozpraszaniem widma, LoRa wykorzystuje sygnał typu „chirp”, czyli sygnał, którego częstotliwość zmienia się w czasie.
+Jest to autorska technika opatentowana przez firmę Semtech, stosowana w komunikacji radiowej. Wykorzystują ją urządzenia o niskim poborze mocy, często zasilane bateryjnie. LoRa korzysta z pasm ISM (przemysłowych, naukowych i medycznych), które nie wymagają licencji – w Europie 433,05–434,79 MHz oraz 863–870 MHz, a w Ameryce Północnej 902–928 MHz. Meshtastic w regionie EU\_868 korzysta z pasma 869,4--869,65 MHz. Technologia ta wywodzi się z metody modulacji CSS (ang. \textit{Chirp Spread Spectrum}), w której szybkość transmisji danych jest obniżana w celu poprawy czułości. Zgodnie z twierdzeniem Shannona-Hartleya \cite{shannon1949}, zwiększenie szerokości pasma poprawia parametry połączenia w odniesieniu do stosunku sygnału do szumu. W systemach wykorzystujących rozpraszanie widma (ang. \textit{Spread Spectrum}) przesyłane dane są mnożone przez sekwencję chipów (zazwyczaj sygnał o częstotliwości znacznie wyższej niż częstotliwość sygnału informacyjnego). Po stronie odbiorczej sygnał jest mnożony przez tę samą sekwencję chipów, co pozwala na odzyskanie oryginalnych danych. W przeciwieństwie do standardowej komunikacji z rozpraszaniem widma, LoRa wykorzystuje sygnał typu „chirp”, czyli sygnał, którego częstotliwość zmienia się w czasie \cite{semtech_an1200_22}.
 
 \begin{itemize}
     \item \textbf{Częstotliwość środkowa} – częstotliwość, wokół której transmitowany jest sygnał.
@@ -409,9 +412,9 @@ Modele hybrydowe łączą elementy podejścia deterministycznego i statystyczneg
 
 Do prostych modeli strat ścieżki należy model propagacji w wolnej przestrzeni. Zakłada on brak przeszkód pomiędzy nadajnikiem i odbiornikiem oraz brak wpływu odbić i innych zjawisk charakterystycznych dla rzeczywistego środowiska. Straty w wolnej przestrzeni można wyznaczyć za pomocą wzoru \eqref{L_FS} Model ten jest prosty i charakteryzuje się bardzo małą złożonością obliczeniową, jednak nie uwzględnia rzeczywistego ukształtowania terenu ani znajdujących się na drodze sygnału przeszkód.
 
-Bardziej rozbudowane modele wykorzystują informacje o charakterystyce środowiska. Przykładem modeli statystycznych są modele Okumura-Hata oraz COST-231, które zostały opracowane na podstawie wyników pomiarów propagacji fal radiowych. Modele te mogą zapewniać dobre rezultaty w określonych typach środowisk, takich jak obszary miejskie, podmiejskie lub wiejskie, jednak ich zastosowanie jest ograniczone przez zakres częstotliwości, odległości oraz warunki, dla których zostały opracowane.
+Bardziej rozbudowane modele wykorzystują informacje o charakterystyce środowiska. Przykładem modeli statystycznych są modele Okumura-Hata \cite{okumura1968,hata1980} oraz COST-231 \cite{cost231}, które zostały opracowane na podstawie wyników pomiarów propagacji fal radiowych. Modele te mogą zapewniać dobre rezultaty w określonych typach środowisk, takich jak obszary miejskie, podmiejskie lub wiejskie, jednak ich zastosowanie jest ograniczone przez zakres częstotliwości, odległości oraz warunki, dla których zostały opracowane.
 
-W przypadku symulacji sieci rozmieszczonych na dużym obszarze istotne staje się uwzględnienie rzeczywistego ukształtowania terenu. W takiej sytuacji zastosowanie znajduje model Longley-Rice, znany również jako \textit{Irregular Terrain Model} (ITM). Model został opracowany w celu prognozowania propagacji fal radiowych w środowisku o nieregularnym ukształtowaniu terenu. W odróżnieniu od prostych modeli empirycznych wykorzystuje informacje dotyczące profilu terenu pomiędzy nadajnikiem i odbiornikiem, a także parametry opisujące środowisko propagacyjne.
+W przypadku symulacji sieci rozmieszczonych na dużym obszarze istotne staje się uwzględnienie rzeczywistego ukształtowania terenu. W takiej sytuacji zastosowanie znajduje model Longley-Rice, znany również jako \textit{Irregular Terrain Model} (ITM) \cite{longley1968}. Model został opracowany w celu prognozowania propagacji fal radiowych w środowisku o nieregularnym ukształtowaniu terenu. W odróżnieniu od prostych modeli empirycznych wykorzystuje informacje dotyczące profilu terenu pomiędzy nadajnikiem i odbiornikiem, a także parametry opisujące środowisko propagacyjne.
 
 Model Longley-Rice uwzględnia kilka mechanizmów mających wpływ na propagację sygnału, w tym propagację w wolnej przestrzeni, dyfrakcję, odbicia od powierzchni Ziemi oraz wpływ krzywizny Ziemi. Model uwzględnia również właściwości elektryczne powierzchni oraz parametry atmosferyczne. W zależności od warunków propagacji możliwe jest uwzględnienie różnych mechanizmów dominujących na danym odcinku trasy pomiędzy nadajnikiem i odbiornikiem.
 
@@ -574,22 +577,42 @@ Program \texttt{meshtasticd} jest natywnym programem binarnym służącym do uru
     %-----------------------------------------------------------------------------------
     %                            BIBLIOGRAFIA
     %-----------------------------------------------------------------------------------
-    \begin{thebibliography}{3}
+    \begin{thebibliography}{99}
     \addcontentsline{toc}{chapter}{Bibliografia}
+    \bibitem{shannon1949} C. E. Shannon, „Communication in the presence of noise”, \emph{Proceedings of the IRE}, vol. 37, nr 1, s. 10--21, 1949, doi: 10.1109/JRPROC.1949.232969.
+    \bibitem{semtech_an1200_22} Semtech Corporation, \emph{LoRa Modulation Basics}, nota aplikacyjna AN1200.22, wersja 2, maj 2015.
+    \bibitem{okumura1968} Y. Okumura, E. Ohmori, T. Kawano, K. Fukuda, „Field strength and its variability in VHF and UHF land-mobile radio service”, \emph{Review of the Electrical Communication Laboratory}, vol. 16, s. 825--873, 1968.
+    \bibitem{hata1980} M. Hata, „Empirical formula for propagation loss in land mobile radio services”, \emph{IEEE Transactions on Vehicular Technology}, vol. 29, nr 3, s. 317--325, 1980, doi: 10.1109/T-VT.1980.23859.
+    \bibitem{cost231} European Commission, \emph{COST Action 231: Digital mobile radio towards future generation systems. Final report}, EUR 18957, Luksemburg, 1999.
+    \bibitem{longley1968} A. G. Longley, P. L. Rice, \emph{Prediction of tropospheric radio transmission loss over irregular terrain. A computer method -- 1968}, ESSA Technical Report ERL 79-ITS 67, U.S. Department of Commerce, Boulder, 1968.
     \bibitem{oughton2020} E. Oughton, T. Russell, J. Johnson, C. Yardim, J. Kusuma, „itmlogic: The Irregular Terrain Model by Longley and Rice”, \emph{Journal of Open Source Software}, vol. 5, nr 2266, 2020, doi: 10.21105/joss.02266.
+    \bibitem{farr2007} T. G. Farr i in., „The Shuttle Radar Topography Mission”, \emph{Reviews of Geophysics}, vol. 45, nr 2, RG2004, 2007, doi: 10.1029/2005RG000183.
     \bibitem{meshtastic_device} Meshtastic, \emph{Device Configuration}. Dostępne online: \url{https://meshtastic.org/docs/configuration/radio/device/} [dostęp: 03.09.2026].
     \bibitem{bor2016} M. Bor, U. Roedig, T. Voigt, J. M. Alonso, „Do LoRa Low-Power Wide-Area Networks Scale?”, w: \emph{Proceedings of the 19th ACM International Conference on Modeling, Analysis and Simulation of Wireless and Mobile Systems (MSWiM '16)}, ACM, 2016, doi: 10.1145/2988287.2989163.
-    \bibitem{semtech_an1200_13} Semtech Corporation, \emph{LoRa Modem Designer's Guide}, nota aplikacyjna AN1200.13, wersja 1, lipiec 2013.
-    \bibitem{farr2007} T. G. Farr i in., „The Shuttle Radar Topography Mission”, \emph{Reviews of Geophysics}, vol. 45, nr 2, RG2004, 2007, doi: 10.1029/2005RG000183.
-    \bibitem{lorastats} lorastats.pl, \emph{Statystyki polskiej sieci Meshtastic}, API danych z ostatnich 24 godzin. Dostępne online: \url{https://lorastats.pl/API} [dostęp: 07.10.2026].
-    \bibitem{meshtastic_protobufs} Meshtastic, \emph{Protobufs}, plik \texttt{meshtastic/mesh.proto}, pole \texttt{Position.precision\_bits}. Dostępne online: \url{https://github.com/meshtastic/protobufs} [dostęp: 07.10.2026].
-    \bibitem{gugik_lod1} Główny Urząd Geodezji i Kartografii, \emph{Modele 3D budynków LoD1}, dane otwarte, licencja CC BY 4.0. Dostępne online: \url{https://opendata.geoportal.gov.pl/InneDane/Budynki3D/LOD1/2024/} [dostęp: 07.10.2026].
-    \bibitem{itu_p526} International Telecommunication Union, \emph{Recommendation ITU-R P.526-15: Propagation by diffraction}, Genewa, 2019.
-    \bibitem{meshtastic_firmware} Meshtastic, \emph{Meshtastic Firmware}, wersja 2.7.15, pliki \texttt{src/platform/portduino/SimRadio.cpp}, \texttt{src/mesh/RadioInterface.cpp}, \texttt{src/mesh/SX126xInterface.cpp}. Dostępne online: \url{https://github.com/meshtastic/firmware} [dostęp: 07.10.2026].
     \bibitem{magrin2017} D. Magrin, M. Centenaro, L. Vangelista, „Performance evaluation of LoRa networks in a smart city scenario”, w: \emph{2017 IEEE International Conference on Communications (ICC)}, Paryż, 2017, doi: 10.1109/ICC.2017.7996384.
     \bibitem{slabicki2018} M. Slabicki, G. Premsankar, M. Di Francesco, „Adaptive configuration of LoRa networks for dense IoT deployments”, w: \emph{NOMS 2018 -- IEEE/IFIP Network Operations and Management Symposium}, Taipei, 2018, doi: 10.1109/NOMS.2018.8406255.
     \bibitem{meshtasticator} Meshtastic, \emph{Meshtasticator -- Discrete-event and interactive simulator for Meshtastic}. Dostępne online: \url{https://github.com/meshtastic/Meshtasticator} [dostęp: 09.10.2026].
     \bibitem{site_planner} Meshtastic, \emph{Meshtastic Site Planner}. Dostępne online: \url{https://github.com/meshtastic/meshtastic-site-planner} [dostęp: 09.10.2026].
+    \bibitem{fastapi} S. Ramírez, \emph{FastAPI}. Dostępne online: \url{https://fastapi.tiangolo.com/} [dostęp: 09.10.2026].
+    \bibitem{repozytorium} M. Data, \emph{Symulator sieci Meshtastic -- kod źródłowy}. Dostępne online: \url{https://github.com/TheJimmyNowak/inzynierka-ver-2} [dostęp: 09.10.2026].
+    \bibitem{leaflet} V. Agafonkin i in., \emph{Leaflet -- an open-source JavaScript library for interactive maps}. Dostępne online: \url{https://leafletjs.com/} [dostęp: 09.10.2026].
+    \bibitem{influxdb} InfluxData, \emph{InfluxDB 2 Documentation}. Dostępne online: \url{https://docs.influxdata.com/influxdb/v2/} [dostęp: 09.10.2026].
+    \bibitem{gugik_lod1} Główny Urząd Geodezji i Kartografii, \emph{Modele 3D budynków LoD1}, dane otwarte, licencja CC BY 4.0. Dostępne online: \url{https://opendata.geoportal.gov.pl/InneDane/Budynki3D/LOD1/2024/} [dostęp: 07.10.2026].
+    \bibitem{itu_p526} International Telecommunication Union, \emph{Recommendation ITU-R P.526-15: Propagation by diffraction}, Genewa, 2019.
+    \bibitem{sx1262} Semtech Corporation, \emph{SX1261/2 Long Range, Low Power, sub-GHz RF Transceiver}, karta katalogowa. Dostępne online: \url{https://www.semtech.com/products/wireless-rf/lora-connect/sx1262} [dostęp: 09.10.2026].
+    \bibitem{etsi300220} ETSI, \emph{EN 300 220-2 V3.2.1: Short Range Devices (SRD) operating in the frequency range 25 MHz to 1 000 MHz; Part 2: Harmonised Standard for access to radio spectrum for non specific radio equipment}, 2018.
+    \bibitem{semtech_an1200_13} Semtech Corporation, \emph{LoRa Modem Designer's Guide}, nota aplikacyjna AN1200.13, wersja 1, lipiec 2013.
+    \bibitem{meshtastic_firmware} Meshtastic, \emph{Meshtastic Firmware}, wersja 2.7.15, pliki \texttt{src/platform/portduino/SimRadio.cpp}, \texttt{src/mesh/RadioInterface.cpp}, \texttt{src/mesh/SX126xInterface.cpp}. Dostępne online: \url{https://github.com/meshtastic/firmware} [dostęp: 07.10.2026].
+    \bibitem{lorastats} lorastats.pl, \emph{Statystyki polskiej sieci Meshtastic}, API danych z ostatnich 24 godzin. Dostępne online: \url{https://lorastats.pl/API} [dostęp: 07.10.2026].
+    \bibitem{meshtastic_protobufs} Meshtastic, \emph{Protobufs}, plik \texttt{meshtastic/mesh.proto}, pole \texttt{Position.precision\_bits}. Dostępne online: \url{https://github.com/meshtastic/protobufs} [dostęp: 07.10.2026].
+    \bibitem{efron1993} B. Efron, R. J. Tibshirani, \emph{An Introduction to the Bootstrap}, Chapman \& Hall, Nowy Jork, 1993.
+    \bibitem{brier1950} G. W. Brier, „Verification of forecasts expressed in terms of probability”, \emph{Monthly Weather Review}, vol. 78, nr 1, s. 1--3, 1950.
+    \bibitem{naeini2015} M. P. Naeini, G. F. Cooper, M. Hauskrecht, „Obtaining well calibrated probabilities using Bayesian binning”, w: \emph{Proceedings of the 29th AAAI Conference on Artificial Intelligence}, s. 2901--2907, 2015.
+    \bibitem{cox1958} D. R. Cox, „Two further applications of a model for binary regression”, \emph{Biometrika}, vol. 45, nr 3--4, s. 562--565, 1958.
+    \bibitem{cohen1960} J. Cohen, „A coefficient of agreement for nominal scales”, \emph{Educational and Psychological Measurement}, vol. 20, nr 1, s. 37--46, 1960, doi: 10.1177/001316446002000104.
+    \bibitem{wilcoxon1945} F. Wilcoxon, „Individual comparisons by ranking methods”, \emph{Biometrics Bulletin}, vol. 1, nr 6, s. 80--83, 1945, doi: 10.2307/3001968.
+    \bibitem{abramson1970} N. Abramson, „The ALOHA System: another alternative for computer communications”, w: \emph{Proceedings of the Fall Joint Computer Conference (AFIPS '70)}, s. 281--285, 1970, doi: 10.1145/1478462.1478502.
+    \bibitem{kleinrock1975} L. Kleinrock, F. A. Tobagi, „Packet switching in radio channels: Part I -- Carrier sense multiple-access modes and their throughput-delay characteristics”, \emph{IEEE Transactions on Communications}, vol. 23, nr 12, s. 1400--1416, 1975, doi: 10.1109/TCOM.1975.1092768.
 	\end{thebibliography}
     \cleardoublepage
 

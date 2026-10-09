@@ -83,23 +83,23 @@ W zbiorze kalibracyjnym łącza istniały w 36\% par. Odsetek ten oraz moc na is
 
 \section{Metryki oceny}
 
-Symulator ma charakter stochastyczny, a dane z sieci mają postać obserwacji binarnych oraz rozkładów, dlatego do oceny zastosowano metryki probabilistyczne. Pary obserwowane przez tę samą bramkę lub należące do tego samego klastra nie są od siebie niezależne. Z tego względu przedziały ufności wyznaczane są metodą bootstrap z losowaniem całych grup (bramek lub klastrów), a nie pojedynczych par.
+Symulator ma charakter stochastyczny, a dane z sieci mają postać obserwacji binarnych oraz rozkładów, dlatego do oceny zastosowano metryki probabilistyczne. Pary obserwowane przez tę samą bramkę lub należące do tego samego klastra nie są od siebie niezależne. Z tego względu przedziały ufności wyznaczane są metodą bootstrap \cite{efron1993} z losowaniem całych grup (bramek lub klastrów), a nie pojedynczych par.
 
-Zdolność modelu do odróżniania łączy istniejących od nieistniejących oceniono polem pod krzywą ROC (AUC) dla marginesu łącza \(M\) ze wzoru~\eqref{M}. Wartość AUC równa jest prawdopodobieństwu, że losowo wybrane łącze istniejące ma większy margines niż losowo wybrane łącze nieistniejące. Wartość 1 oznacza idealne uporządkowanie, a wartość 0,5 uporządkowanie losowe. Jakość przewidywanych prawdopodobieństw \(p_i\) oceniono wynikiem Briera:
+Zdolność modelu do odróżniania łączy istniejących od nieistniejących oceniono polem pod krzywą ROC (AUC) dla marginesu łącza \(M\) ze wzoru~\eqref{M}. Wartość AUC równa jest prawdopodobieństwu, że losowo wybrane łącze istniejące ma większy margines niż losowo wybrane łącze nieistniejące. Wartość 1 oznacza idealne uporządkowanie, a wartość 0,5 uporządkowanie losowe. Jakość przewidywanych prawdopodobieństw \(p_i\) oceniono wynikiem Briera \cite{brier1950}:
 
 \begin{equation}\label{eq:brier}
 BS = \frac{1}{n}\sum_{i=1}^{n} (p_i - y_i)^2
 \end{equation}
 
-gdzie \(y_i\) przyjmuje wartość 1 dla łącza istniejącego i 0 w przeciwnym przypadku. Uzupełnieniem są: logarytmiczna funkcja straty, oczekiwany błąd kalibracji (ECE), czyli średnia ważona różnica pomiędzy przewidywanym a obserwowanym odsetkiem łączy w przedziałach prawdopodobieństwa, oraz prosta kalibracji \(\textrm{logit}\,P(y=1) = a + b\cdot\textrm{logit}(p)\). Dla modelu dobrze skalibrowanego \(a = 0\) i \(b = 1\). Ujemna wartość \(a\) oznacza model zbyt optymistyczny, a wartość \(b < 1\) model zbyt pewny swoich przewidywań. Do oceny decyzji binarnych przy progu \(p = 0{,}5\) wykorzystano czułość (TPR), swoistość (TNR), zbalansowaną trafność oraz współczynnik korelacji Matthewsa (MCC). Błąd mocy odbieranej na istniejących łączach opisano średnim błędem, błędem średniokwadratowym (RMSE) i współczynnikiem korelacji rang Spearmana.
+gdzie \(y_i\) przyjmuje wartość 1 dla łącza istniejącego i 0 w przeciwnym przypadku. Uzupełnieniem są: logarytmiczna funkcja straty, oczekiwany błąd kalibracji (ECE) \cite{naeini2015}, czyli średnia ważona różnica pomiędzy przewidywanym a obserwowanym odsetkiem łączy w przedziałach prawdopodobieństwa, oraz prosta kalibracji \cite{cox1958} \(\textrm{logit}\,P(y=1) = a + b\cdot\textrm{logit}(p)\). Dla modelu dobrze skalibrowanego \(a = 0\) i \(b = 1\). Ujemna wartość \(a\) oznacza model zbyt optymistyczny, a wartość \(b < 1\) model zbyt pewny swoich przewidywań. Do oceny decyzji binarnych przy progu \(p = 0{,}5\) wykorzystano czułość (TPR), swoistość (TNR), zbalansowaną trafność oraz współczynnik korelacji Matthewsa (MCC). Błąd mocy odbieranej na istniejących łączach opisano średnim błędem, błędem średniokwadratowym (RMSE) i współczynnikiem korelacji rang Spearmana.
 
-Routing oceniono dla par nadawca--bramka na podstawie pierwszego udanego odbioru każdego pakietu nadawcy na bramce. Dla każdej pary wyznaczany jest tryb przekazania, czyli to, czy pakiet dociera zwykle bezpośrednio, czy przez pośrednika, liczba skoków oraz węzeł przekazujący. Zgodność trybu przekazania oceniono odsetkiem zgodnych par oraz współczynnikiem kappa Cohena:
+Routing oceniono dla par nadawca--bramka na podstawie pierwszego udanego odbioru każdego pakietu nadawcy na bramce. Dla każdej pary wyznaczany jest tryb przekazania, czyli to, czy pakiet dociera zwykle bezpośrednio, czy przez pośrednika, liczba skoków oraz węzeł przekazujący. Zgodność trybu przekazania oceniono odsetkiem zgodnych par oraz współczynnikiem kappa Cohena \cite{cohen1960}:
 
 \begin{equation}\label{eq:kappa}
 \kappa = \frac{p_o - p_e}{1 - p_e}
 \end{equation}
 
-gdzie \(p_o\) oznacza obserwowaną zgodność, a \(p_e\) zgodność oczekiwaną przy przypadkowym przydziale. Współczynnik kappa jest szczególnie istotny w przypadku niezrównoważonych klas. Gdy większość par komunikuje się przez pośrednika, nawet model przewidujący zawsze retransmisję osiągnąłby wysoką zgodność, natomiast jego współczynnik kappa byłby bliski zeru. Liczbę skoków oceniono średnią różnicą mody liczby skoków w symulacji i w sieci, średnim błędem bezwzględnym oraz odległością Wassersteina pomiędzy rozkładami liczby skoków, która porównuje całe rozkłady, a nie tylko ich wartości najczęstsze. Różnice pomiędzy wariantami modelu oceniono testem Wilcoxona dla par obserwacji wiązanych, porównując błędy bezwzględne tych samych par węzłów.
+gdzie \(p_o\) oznacza obserwowaną zgodność, a \(p_e\) zgodność oczekiwaną przy przypadkowym przydziale. Współczynnik kappa jest szczególnie istotny w przypadku niezrównoważonych klas. Gdy większość par komunikuje się przez pośrednika, nawet model przewidujący zawsze retransmisję osiągnąłby wysoką zgodność, natomiast jego współczynnik kappa byłby bliski zeru. Liczbę skoków oceniono średnią różnicą mody liczby skoków w symulacji i w sieci, średnim błędem bezwzględnym oraz odległością Wassersteina pomiędzy rozkładami liczby skoków, która porównuje całe rozkłady, a nie tylko ich wartości najczęstsze. Różnice pomiędzy wariantami modelu oceniono testem Wilcoxona dla par obserwacji wiązanych \cite{wilcoxon1945}, porównując błędy bezwzględne tych samych par węzłów.
 
 \section{Kampania testowa}
 
@@ -141,7 +141,7 @@ W kampanii wykonano następujące testy:
 \item \textbf{skalowalność} -- sieci liczące od 10 do 80 węzłów.
 \end{itemize}
 
-Łącznie wykonano 292 przebiegi. Przebiegi prowadzone były równolegle na 6 do 12 instancjach backendu. W fazie generowania ruchu procesor komputera pozostawał bezczynny w 85--90\%, dzięki czemu równoległe przebiegi nie wpływały na zależności czasowe w symulowanym eterze. Testy regresyjne zakończyły się powodzeniem, a żaden z przebiegów nie zakończył się błędem aplikacji.
+Łącznie wykonano 292 przebiegi. Przebiegi prowadzone były równolegle na 6 do 12 instancjach backendu, na komputerze z procesorem AMD Ryzen 7 250 (8 rdzeni, 16 wątków) i około 14 GB pamięci RAM dostępnej dla systemu, pod kontrolą systemu Pop!\_OS 24.04 z jądrem Linux 7.1, z oprogramowaniem Docker 29.8 i obrazem \texttt{meshtasticd} w wersji 2.7.15. W fazie generowania ruchu procesor komputera pozostawał bezczynny w 85--90\%, dzięki czemu równoległe przebiegi nie wpływały na zależności czasowe w symulowanym eterze. Testy regresyjne zakończyły się powodzeniem, a żaden z przebiegów nie zakończył się błędem aplikacji.
 
 \section{Ocena modelu łączy}
 
@@ -236,7 +236,7 @@ Powtarzalność oceniono na podstawie trzykrotnego powtórzenia przebiegów o id
 
 Model współdzielenia kanału sprawdzono w syntetycznej sieci pracującej z presetem MEDIUM\_FAST, w której 10 lub 20 węzłów rozmieszczono na okręgu o promieniu 300 m, tak aby każdy węzeł słyszał wszystkie pozostałe. Limit skoków ustawiono na zero, aby wyeliminować retransmisje, a fading wyłączono. Wiadomości wysyłane były w chwilach wyznaczonych przez proces Poissona o łącznej intensywności \(\lambda\) od 0,25 do 4 wiadomości na sekundę. Obciążenie kanału \(G\) zdefiniowano jako łączny czas nadawania odniesiony do czasu trwania przebiegu.
 
-Wyniki odniesiono do dwóch modeli teoretycznych. W protokole ALOHA bez sprawdzania kanału pakiet jest odebrany poprawnie z prawdopodobieństwem \(e^{-2G}\). W protokole ze sprawdzaniem kanału kolizja następuje wyłącznie wtedy, gdy inna transmisja rozpocznie się w czasie krótszym niż czas wykrycia \(\tau\), co prowadzi do prawdopodobieństwa \(e^{-2\lambda\tau}\), gdzie \(\tau\) równe jest czasowi slotu ze wzoru~\eqref{eq:slot}. Wyniki przedstawiono w tabeli~\ref{tab:medium} oraz na rysunku~\ref{rys:t5}.
+Wyniki odniesiono do dwóch modeli teoretycznych. W protokole ALOHA \cite{abramson1970} bez sprawdzania kanału pakiet jest odebrany poprawnie z prawdopodobieństwem \(e^{-2G}\). W protokole ze sprawdzaniem kanału \cite{kleinrock1975} kolizja następuje wyłącznie wtedy, gdy inna transmisja rozpocznie się w czasie krótszym niż czas wykrycia \(\tau\), co prowadzi do prawdopodobieństwa \(e^{-2\lambda\tau}\), gdzie \(\tau\) równe jest czasowi slotu ze wzoru~\eqref{eq:slot}. Wyniki przedstawiono w tabeli~\ref{tab:medium} oraz na rysunku~\ref{rys:t5}.
 
 \begin{table}[ht]
 \centering
