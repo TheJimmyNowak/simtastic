@@ -1,0 +1,45 @@
+% Schemat architektury symulatora (rozdział Implementacja)
+\begin{tikzpicture}[
+  font=\small, every node/.append style={execute at begin node=\linespread{1}\selectfont},
+  blok/.style={draw, rounded corners=2pt, align=center, minimum height=12mm, minimum width=31mm, inner sep=3pt, fill=white},
+  dane/.style={draw, cylinder, shape border rotate=90, aspect=0.2, align=center, minimum height=13mm, minimum width=19mm, inner sep=2pt, fill=white},
+  grupa/.style={draw, dashed, rounded corners=4pt, inner sep=6pt},
+  strz/.style={-{Stealth[length=2.2mm]}, thick},
+  dwustr/.style={{Stealth[length=2.2mm]}-{Stealth[length=2.2mm]}, thick},
+  opis/.style={font=\footnotesize, fill=white, inner sep=1.5pt, align=center},
+]
+  % backend
+  \node[blok] (itm) at (0,0) {Obliczanie łączy\\[-1pt]\footnotesize ITM, zabudowa, cieniowanie};
+  \node[blok] (api) at (5.6,0) {API REST\\[-1pt]\footnotesize scenariusze, sterowanie};
+  \node[blok] (gen) at (0,-2.6) {Generator ruchu\\[-1pt]\footnotesize harmonogram YAML};
+  \node[blok] (gw)  at (5.6,-2.6) {RadioGateway\\[-1pt]\footnotesize fading, kolizje, CAD};
+  \begin{scope}[on background layer]
+    \node[grupa, fill=gray!7, fit=(itm)(api)(gen)(gw), inner ysep=10pt,
+          label={[font=\footnotesize\bfseries, anchor=south west, inner sep=2pt]north west:Backend (Python, FastAPI)}] (backend) {};
+  \end{scope}
+
+  % otoczenie
+  \node[blok, minimum width=30mm] (ui) at (5.6,2.5) {Przeglądarka\\[-1pt]\footnotesize React + Leaflet};
+  \node[dane] (srtm) at (-3.9,0.75) {SRTM\\[-2pt]\footnotesize teren};
+  \node[dane] (bud)  at (-3.9,-0.95) {LoD1\\[-2pt]\footnotesize budynki};
+  \node[dane] (influx) at (9.4,-2.6) {InfluxDB\\[-2pt]\footnotesize ślad};
+  \node[blok, minimum width=22mm] (graf) at (9.4,0) {Grafana\\[-1pt]\footnotesize pulpity};
+
+  % węzły: stos kontenerów
+  \foreach \d in {2,1} {
+    \node[blok, minimum width=88mm, minimum height=11mm] at (2.8+0.15*\d,-5.6-0.15*\d) {};
+  }
+  \node[blok, minimum width=88mm, minimum height=11mm] (wezly) at (2.8,-5.6)
+       {węzły 1 \dots{} \(N\): \texttt{meshtasticd -s}, osobny kontener Docker dla każdego węzła};
+
+  % połączenia
+  \draw[dwustr] (ui) -- node[opis, right=1pt] {REST} (api);
+  \draw[strz] (api) -- node[opis, above] {start} (itm);
+  \draw[strz] (srtm) -- (itm);
+  \draw[strz] (bud) -- (itm);
+  \draw[strz] (itm.south east) -- node[opis, fill=gray!7, pos=0.5] {macierz\\łączy} (gw.north west);
+  \draw[strz] (gen) -- node[opis] {polecenia\\(TCP)} (gen |- wezly.north);
+  \draw[dwustr] (gw) -- node[opis] {\texttt{SIMULATOR\_APP}\\(TCP)} (gw |- wezly.north);
+  \draw[strz] (gw) -- node[opis, above] {zapis} (influx);
+  \draw[strz] (influx) -- node[opis, right=1pt] {Flux} (graf);
+\end{tikzpicture}
