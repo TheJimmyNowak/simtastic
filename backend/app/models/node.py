@@ -4,10 +4,22 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 class NodeRole(str, Enum):
+    """Config.DeviceConfig.Role values that meshtasticd keeps after a reboot.
+
+    REPEATER and ROUTER_CLIENT are left out: they are deprecated and firmware 2.7.15
+    silently stores them as CLIENT, which would fail verify_provisioning.
+    """
     CLIENT = "CLIENT"
-    ROUTER = "ROUTER"
-    REPEATER = "REPEATER"
     CLIENT_MUTE = "CLIENT_MUTE"
+    CLIENT_HIDDEN = "CLIENT_HIDDEN"
+    CLIENT_BASE = "CLIENT_BASE"
+    ROUTER = "ROUTER"
+    ROUTER_LATE = "ROUTER_LATE"
+    TRACKER = "TRACKER"
+    SENSOR = "SENSOR"
+    TAK = "TAK"
+    TAK_TRACKER = "TAK_TRACKER"
+    LOST_AND_FOUND = "LOST_AND_FOUND"
 
 def _default_mac() -> str:
     b = secrets.token_bytes(3)

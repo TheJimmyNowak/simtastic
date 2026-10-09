@@ -182,7 +182,8 @@
 %używane pakiety
 %\usepackage{setspace}
 %\usepackage{cite}
-%\usepackage{tikz}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds,shapes.geometric}
 %\usepackage{subcaption}
 
 
@@ -478,7 +479,7 @@ Do obliczeń używamy numerycznego modelu terenu Shuttle Radar Topography Missio
     \hline
 \end{longtable}
 
-Symulator pozwala przypisać węzłom role CLIENT, CLIENT\_MUTE, ROUTER oraz REPEATER. Są to role decydujące o sposobie retransmisji pakietów, a więc o działaniu routingu. Role różniące się od nich głównie okresem rozgłaszania informacji lub momentem retransmisji, takie jak ROUTER\_LATE, odwzorowywane są w symulacji jako ROUTER, a pozostałe role klienckie jako CLIENT.
+Oprócz ról przedstawionych w tabeli firmware udostępnia role przeznaczone dla urządzeń o określonym zastosowaniu: TRACKER i SENSOR, które priorytetowo nadają odpowiednio pozycję i telemetrię, TAK i TAK\_TRACKER do współpracy z aplikacją ATAK oraz LOST\_AND\_FOUND, okresowo rozgłaszającą pozycję urządzenia. Symulator pozwala przypisać węzłowi każdą z tych ról, ponieważ konfiguracja przekazywana jest bezpośrednio do oprogramowania \texttt{meshtasticd}. Wyjątkiem są przestarzałe role REPEATER oraz ROUTER\_CLIENT, które oprogramowanie w wersji 2.7.15 zapisuje jako CLIENT. Zostało to sprawdzone przez ustawienie każdej roli w węźle \texttt{meshtasticd} i odczytanie jej po ponownym uruchomieniu.
 
 \section{Problemy związane z symulacją warstwy logicznej sieci LoRa Mesh}
 

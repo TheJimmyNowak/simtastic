@@ -7,18 +7,12 @@ from meshtastic import admin_pb2, config_pb2
 from meshtastic.tcp_interface import TCPInterface
 
 from app.models.environment import LORA_PRESETS, LoraPreset
-from app.models.node import NodeConfig, NodeRole
+from app.models.node import NodeConfig
 
 logger = logging.getLogger(__name__)
 
-_ROLE_MAP = {
-    NodeRole.CLIENT: "CLIENT",
-    NodeRole.ROUTER: "ROUTER",
-    NodeRole.REPEATER: "REPEATER",
-    NodeRole.CLIENT_MUTE: "CLIENT_MUTE",
-}
-
 LoRaConfig = config_pb2.Config.LoRaConfig
+Role = config_pb2.Config.DeviceConfig.Role
 
 # meshtasticd ma małą kolejkę pakietów lokalnych: seria komunikatów admin wysłana
 # bez przerw przepełnia ją i firmware po cichu odrzuca najstarsze („drop oldest”).
@@ -85,7 +79,7 @@ def provision_node(
     time.sleep(ADMIN_GAP_S)
 
     device_cfg = local.localConfig.device
-    device_cfg.role = _ROLE_MAP.get(node.role, "CLIENT")
+    device_cfg.role = Role.Value(node.role.value)
     device_cfg.node_info_broadcast_secs = 90
     p = admin_pb2.AdminMessage()
     p.set_config.device.CopyFrom(device_cfg)
@@ -115,10 +109,7 @@ def verify_provisioning(iface: TCPInterface, node: NodeConfig, preset_name: str)
     expected = {
         "region": (cfg.lora.region, LoRaConfig.RegionCode.EU_868),
         "hop_limit": (cfg.lora.hop_limit, int(node.hop_limit)),
-        "role": (
-            cfg.device.role,
-            config_pb2.Config.DeviceConfig.Role.Value(_ROLE_MAP.get(node.role, "CLIENT")),
-        ),
+        "role": (cfg.device.role, Role.Value(node.role.value)),
     }
     if preset_name in LORA_PRESETS:
         expected["modem_preset"] = (cfg.lora.modem_preset, LoRaConfig.ModemPreset.Value(preset_name))

@@ -28,8 +28,10 @@ PRESETS = {
     119: {"preset": "custom", "custom_bandwidth_khz": 250, "custom_spreading_factor": 8},
 }
 PRESET_NAMES = {31: "MediumFast", 8: "LongFast", 112: "ShortFast", 119: "ShortSlow"}
-# Config.DeviceConfig.Role → rola w symulatorze (ROUTER_LATE i ROUTER_CLIENT jak ROUTER).
-ROLE_MAP = {1: "CLIENT_MUTE", 2: "ROUTER", 3: "ROUTER", 4: "REPEATER", 11: "ROUTER"}
+# Config.DeviceConfig.Role → rola w symulatorze. Kampania z 8.10.2026 odwzorowywała
+# ROUTER_LATE jako ROUTER i ten zapis zostaje, żeby wyniki z pracy dało się odtworzyć.
+# Przestarzałe ROUTER_CLIENT i REPEATER firmware 2.7.15 zapisuje jako CLIENT, więc też ROUTER.
+ROLE_MAP = {1: "CLIENT_MUTE", 2: "ROUTER", 3: "ROUTER", 4: "ROUTER", 11: "ROUTER"}
 PL_BBOX = (49.0, 54.9, 14.1, 24.2)
 MIN_PAIR_M, MAX_PAIR_M = 200.0, 60_000.0
 MIN_RELAYED_FOR_NO_LINK = 5

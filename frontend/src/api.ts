@@ -1,5 +1,19 @@
-export type Role = "CLIENT" | "ROUTER" | "REPEATER" | "CLIENT_MUTE";
-export const ROLES: Role[] = ["CLIENT", "ROUTER", "REPEATER", "CLIENT_MUTE"];
+// Role z firmware Meshtastic (bez przestarzałych REPEATER i ROUTER_CLIENT, które firmware zapisuje jako CLIENT).
+export const ROLES = [
+  "CLIENT",
+  "CLIENT_MUTE",
+  "CLIENT_HIDDEN",
+  "CLIENT_BASE",
+  "ROUTER",
+  "ROUTER_LATE",
+  "TRACKER",
+  "SENSOR",
+  "TAK",
+  "TAK_TRACKER",
+  "LOST_AND_FOUND",
+] as const;
+export type Role = (typeof ROLES)[number];
+export const INFRASTRUCTURE_ROLES: readonly Role[] = ["ROUTER", "ROUTER_LATE"];
 
 export type ScenarioStatus =
   | "draft"

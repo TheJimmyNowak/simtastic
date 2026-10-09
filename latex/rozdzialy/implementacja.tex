@@ -8,16 +8,7 @@ Symulator składa się z kilku współpracujących ze sobą komponentów urucham
 
 \begin{figure}[ht]
 \centering
-\small
-\begin{verbatim}
- przeglądarka (React + Leaflet)
-          |  REST
- backend (FastAPI)
-   |- precompute ITM  ->  macierz łączy (link_matrix.npz)
-   |- RadioGateway    <-> węzeł 1 .. węzeł N  (meshtasticd -s, TCP)
-   |- generator ruchu ->  harmonogram YAML
-   `- zapis śladu     ->  InfluxDB  ->  Grafana
-\end{verbatim}
+\input{rysunki/architektura}
 \caption{Schemat architektury symulatora}
 \label{rys:architektura}
 \end{figure}
@@ -37,7 +28,7 @@ Przed rozpoczęciem symulacji każdy węzeł jest konfigurowany za pomocą komun
 \begin{itemize}
 \item \textbf{nazwę węzła} -- nazwę długą i skróconą, wyświetlaną w aplikacjach klienckich,
 \item \textbf{parametry radiowe} -- region EU\_868, preset modemu (lub jawne wartości \(SF\), \(BW\), \(CR\) i częstotliwości), limit skoków oraz moc nadajnika,
-\item \textbf{rolę węzła} -- CLIENT, CLIENT\_MUTE, ROUTER lub REPEATER, a także okres rozgłaszania informacji o węźle,
+\item \textbf{rolę węzła} -- jedną z ról obsługiwanych przez firmware (tabela~\ref{tabela1}), a także okres rozgłaszania informacji o węźle,
 \item \textbf{pozycję} -- stałą pozycję geograficzną z wysokością anteny nad poziomem morza oraz okres jej rozgłaszania.
 \end{itemize}
 

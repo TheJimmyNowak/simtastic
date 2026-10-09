@@ -1,3 +1,4 @@
+import pytest
 from meshtastic import admin_pb2, config_pb2
 from meshtastic.protobuf import localonly_pb2
 
@@ -55,6 +56,16 @@ def test_provisioning_uses_single_transaction_and_sets_firmware_preset() -> None
     assert lora.hop_limit == 5
     device = next(m.set_config.device for m in iface.localNode.admin if m.set_config.HasField("device"))
     assert device.role == config_pb2.Config.DeviceConfig.Role.ROUTER
+
+
+@pytest.mark.parametrize("role", list(NodeRole))
+def test_every_role_is_sent_to_firmware(role: NodeRole) -> None:
+    iface = FakeIface()
+    env = EnvironmentConfig(preset="MEDIUM_FAST")
+    node = NodeConfig(id="n", lat=50.0, lon=20.0, role=role)
+    provision_node(iface, node, 0, preset_name=env.preset, lora=env.resolve_lora())
+    device = next(m.set_config.device for m in iface.localNode.admin if m.set_config.HasField("device"))
+    assert config_pb2.Config.DeviceConfig.Role.Name(device.role) == role.value
 
 
 def test_custom_preset_is_sent_as_explicit_modem_parameters() -> None:

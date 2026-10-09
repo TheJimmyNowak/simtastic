@@ -1,5 +1,5 @@
 import type { NodeConfig, Role, ScenarioDraft } from "../api";
-import { ROLES } from "../api";
+import { INFRASTRUCTURE_ROLES, ROLES } from "../api";
 import { NodeMap } from "../components/NodeMap";
 import { newNode } from "../model";
 import { Field, NumberField } from "../ui";
@@ -14,10 +14,17 @@ type Props = {
 };
 
 const ROLE_HINTS: Record<Role, string> = {
-  CLIENT: "Zwykły węzeł — retransmituje pakiety.",
-  ROUTER: "Węzeł infrastrukturalny — retransmituje z priorytetem.",
-  REPEATER: "Tylko retransmisja, bez własnego ruchu.",
+  CLIENT: "Zwykły węzeł — retransmituje, jeśli nikt inny tego nie zrobił.",
   CLIENT_MUTE: "Nie retransmituje cudzych pakietów.",
+  CLIENT_HIDDEN: "Nadaje tylko gdy musi — ogranicza własny ruch.",
+  CLIENT_BASE: "Zawsze retransmituje pakiety ulubionych węzłów, resztę jak CLIENT.",
+  ROUTER: "Węzeł infrastrukturalny — zawsze retransmituje, z priorytetem.",
+  ROUTER_LATE: "Zawsze retransmituje, ale dopiero po pozostałych węzłach.",
+  TRACKER: "Priorytetowo i częściej nadaje pozycję.",
+  SENSOR: "Priorytetowo nadaje telemetrię środowiskową.",
+  TAK: "Ruch ograniczony do współpracy z ATAK.",
+  TAK_TRACKER: "Jak TAK, z automatycznym nadawaniem pozycji.",
+  LOST_AND_FOUND: "Okresowo rozgłasza swoją pozycję na kanale głównym.",
 };
 
 export function NodesStep({ draft, selected, disabled, onSelect, onChange, onNext }: Props) {
@@ -120,8 +127,8 @@ export function NodesStep({ draft, selected, disabled, onSelect, onChange, onNex
             onPick={node && !disabled ? (lat, lon) => updateNode({ lat, lon }) : undefined}
           />
           <div className="legend">
-            <span><i className="dot client" /> CLIENT / CLIENT_MUTE</span>
-            <span><i className="dot router" /> ROUTER / REPEATER</span>
+            <span><i className="dot client" /> pozostałe role</span>
+            <span><i className="dot router" /> {INFRASTRUCTURE_ROLES.join(" / ")}</span>
           </div>
         </div>
       </div>

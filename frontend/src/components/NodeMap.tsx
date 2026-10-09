@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
 import type { Links, NodeConfig } from "../api";
+import { INFRASTRUCTURE_ROLES } from "../api";
 import { SIGNAL_COLORS, signalLevel } from "../model";
 
 type Props = {
@@ -93,7 +94,7 @@ export function NodeMap({ nodes, selectedIndex, onSelect, onPick, links, sensiti
             pathOptions={{
               color: selected ? "#ffffff" : "#0b1220",
               weight: 2,
-              fillColor: node.role === "ROUTER" || node.role === "REPEATER" ? "#f4bb4f" : "#3d91f4",
+              fillColor: INFRASTRUCTURE_ROLES.includes(node.role) ? "#f4bb4f" : "#3d91f4",
               fillOpacity: 1,
             }}
             // Clicking a node selects it instead of moving the selected node there.
