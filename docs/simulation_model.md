@@ -5,41 +5,54 @@ Ten dokument opisuje **co symulator robi**, **z czego wynika**, i **czego świad
 ## Wejścia
 
 - Scenariusz: węzły (pozycje, anteny, szum, role, `hop_limit`), środowisko LoRa (`EnvironmentConfig`), próg łączności, parametry ITM.
-- Dane terenu: SRTM w `data/srtm_cache/` używane do profilu ścieżki i strat Longley–Rice (ITM).
-- Budynki: CityGML LoD1 w `data/buildings_raw/`, lokalnie indeksowane w SQLite/RTree.
+- Teren: numeryczny model terenu GUGiK (NMT, siatka 1 m, wysokości gruntu bez roślinności
+  i zabudowy), pobierany na żądanie z usługi wysokości GUGiK do profilu ścieżki ITM.
+- Budynki: CityGML LoD1 GUGiK, pobierane na żądanie paczkami powiatowymi (powiaty wskazuje
+  usługa PRG) i indeksowane w SQLite/RTree; surowe paczki nie zostają na dysku.
+
+Teren bez pokrycia (SRTM jest modelem powierzchni — radar odbija się od koron drzew i dachów)
+jest potrzebny, żeby budynki LoD1 nie były liczone dwukrotnie: raz w podniesionym terenie,
+raz jako przeszkody.
 
 `agl_m` oznacza wysokość masztu nad powierzchnią montażu. Punkt leżący w obrysie
 budynku jest automatycznie klasyfikowany jako montaż dachowy, więc wysokość anteny to
-`wysokość terenu SRTM + measuredHeight + agl_m`. Poza obrysem jest to
-`wysokość terenu SRTM + agl_m`. Własny budynek anteny dachowej nie jest przeszkodą.
+`wysokość terenu NMT + measuredHeight + agl_m`. Poza obrysem jest to
+`wysokość terenu NMT + agl_m`. Własny budynek anteny dachowej nie jest przeszkodą.
 
 ## Precompute (ITM)
 
 Dla każdej uporządkowanej pary (TX, RX):
 
-1. Budowany jest profil terenu (próbka co ok. 90 m, zgodnie z rozdzielczością SRTM3, co
-   najmniej 50 odcinków) i dystans. Dystans poniżej 1 m jest traktowany jak 1 m.
-2. Liczona jest strata terenu `terrain_loss_db` (ITM).
+1. Budowany jest profil terenu (próbka co `terrain_profile_step_m` = 30 m wzdłuż prostej
+   w układzie PL-1992, co najmniej 50 odcinków) i dystans geodezyjny. Gdy siatka wysokości nad
+   obszarem scenariusza ma mniej punktów niż wszystkie profile razem, pobierana jest siatka
+   o tym samym oczku i profile są z niej interpolowane. Dystans poniżej 1 m jest traktowany jak 1 m.
+2. Liczona jest strata terenu `terrain_loss_db` (ITM), jako średnia z obu kierunków:
+   itmlogic nie jest dokładnie wzajemny, a strata propagacyjna jest.
 3. Jeśli włączono model budynków, wyszukiwane są bryły LoD1 w korytarzu pierwszej
    strefy Fresnela. Dla budynków naruszających wymagany prześwit (domyślnie 60%)
    liczona jest strata knife-edge. Przy wielu przeszkodach wybierana jest dominująca
    strata — nie sumuje się niezależnych krawędzi.
 4. `path_loss_median_db = terrain_loss_db + building_loss_db + clutter_loss_db + link_shadowing_db`:
    - `clutter_loss_db` — stała strata otoczenia ze scenariusza (zabudowa i roślinność spoza
-     SRTM, anteny w budynkach, kable);
+     danych LoD1, anteny w budynkach, kable);
    - `link_shadowing_db ~ N(0, σ²)`, `σ = link_shadowing_sigma_db` — trwałe cieniowanie łącza,
      losowane raz na parę węzłów (ta sama wartość w obu kierunkach) z seedem
      `link_shadowing_seed`. Opisuje różnice między łączami, których ITM nie widzi; fading w
-     runtime opisuje zmienność kolejnych transmisji na tym samym łączu.
+     runtime opisuje zmienność kolejnych transmisji na tym samym łączu;
+   - opcjonalnie strata instalacji węzła `N(0, node_installation_sigma_db²)` (losowana raz na
+     węzeł, doliczana do wszystkich jego łączy) i odsetek par zablokowanych
+     `link_blocked_fraction` (para bez krawędzi) — oba z tym samym seedem.
 
-   Wartości z kalibracji: `docs/validation_lorastats.md`.
+   Wartości z kalibracji: `docs/test_campaign_v3.md` (wcześniejsze: `docs/validation_lorastats.md`).
 5. **Medianowy RSSI** (bez fadingu):  
    `RSSI = P_tx + G_tx + G_rx − PL` (domyślnie `P_tx` = 22 dBm, typowe SX1262) — ten sam wzór co w module `app.services.rf_link_model` (`compute_rssi_db`, `shadow_db = 0`).
 6. Graf sąsiedztwa: krawędź TX→RX jeśli `median_rssi_db[tx,rx] ≥ connectivity_threshold_dbm`.
 
-Wysokości bezwzględne CityGML są w PL-EVRF2007-NH, a SRTM w EGM96. Aby ich nie
-mieszać, model wykorzystuje z CityGML względne `measuredHeight` i osadza dach na
-lokalnym profilu SRTM. Jest to świadome uproszczenie zapewniające jeden układ pionowy.
+NMT udostępniany przez usługę ma wysokości w PL-KRON86-NH, a CityGML w PL-EVRF2007-NH
+(różnica rzędu centymetrów). Model wykorzystuje z CityGML względne `measuredHeight` i osadza
+dach na tym samym gruncie NMT, z którego zbudowany jest profil ITM, więc całe łącze ma jedno
+źródło wysokości gruntu.
 
 Macierz i sąsiedztwo są **zamrożone** na czas symulacji (brak zmian topologii w runtime).
 
@@ -50,7 +63,9 @@ Macierz i sąsiedztwo są **zamrożone** na czas symulacji (brak zmian topologii
    nadajnikiem jest węzeł, którego połączenie zgłosiło pakiet (a nie pole `from`, które przy
    retransmisji wskazuje pierwotnego autora). Zwykłe odbiory nie są transmisjami.
 2. Dla każdego sąsiada z precompute:  
-   `RSSI = P_tx + G_tx + G_rx − PL_median + X`, gdzie `X ~ N(0, σ²)` i `σ = fading_sigma_db`.
+   `RSSI = P_tx + G_tx + G_rx − PL_median + X`, gdzie `X ~ N(0, σ²)` i `σ = fading_sigma_db`
+   (domyślnie 1 dB — rozrzut RSSI kolejnych odbiorów na łączach stacjonarnych w danych
+   lorastats.pl; wcześniej przyjmowane 8 dB).
 3. **SNR** jest liczony jako `min(RSSI − N, 12 dB)`, gdzie szum odbiornika
    `N = −174 + 10·log10(BW) + NF` (NF = 6 dB; −114 dBm dla 250 kHz) — ten sam, z którego wynika
    czułość `N + SNR_min(SF)`; węzeł może go nadpisać polem `noise_floor_dbm`. Nasycenie na 12 dB
@@ -88,7 +103,26 @@ Model za Borem i in. (MSWiM '16, LoRaSim), moduł `app.services.radio_medium`:
    (oba węzły widzą wolny kanał i kolidują). Własna, trwająca transmisja węzła zawsze blokuje
    jego radio: firmware zgłasza kolejny pakiet, nie wiedząc, że poprzedni został odroczony.
    Sprawdzenie i rejestracja transmisji są atomowe (`RadioMedium.place`).
-5. Przyczyna utraty trafia do `link_attempt` (tag `loss_reason`) i do widoku pakietów.
+5. **Anulowanie retransmisji**: prawdziwy węzeł przy zajętym kanale trzyma pakiet w kolejce
+   i anuluje retransmisję, gdy w tym czasie odbierze jej duplikat (`perhapsCancelDupe`;
+   nie dotyczy ról ROUTER i ROUTER_LATE). Firmware w SimRadio zgłosił pakiet już jako nadany,
+   więc odroczoną retransmisję anuluje medium (`RadioMedium.cancel_pending`, pomiar
+   `packet_ota_cancel`).
+6. Pakiet identyfikuje para (nadawca pierwotny, id) — kontenery `meshtasticd` potrafią
+   wylosować to samo id. Chwila nadania to moment odebrania zgłoszenia z TCP (opóźnienie obsługi
+   w kolejce biblioteki jest mierzone: `report_delay_ms`).
+7. Przyczyna utraty trafia do `link_attempt` (tag `loss_reason`) i do widoku pakietów.
+
+Bez kolizji (`collisions_enabled = false`) odbiór też następuje po czasie w eterze, tylko bez
+strat kolizyjnych i CAD — ablacja zmienia wyłącznie straty.
+
+### Start i rozgrzewka
+
+Gateway działa już podczas konfiguracji węzłów. Okresy NodeInfo i pozycji pozostają domyślne
+(firmware: 3 h i 15 min). Przed ruchem z harmonogramu każdy węzeł rozgłasza swoje NodeInfo
+w losowej chwili okna `max(sim_nodeinfo_window_s, sim_nodeinfo_gap_s × N)` (20 s, 2 s), po
+czym następuje przerwa `sim_traffic_warmup_s` (10 s) — sieć zaczyna w stanie, w którym węzły
+się znają, jak sieć rzeczywista.
 
 Weryfikacja na `meshtasticd` (ukryty węzeł: A i C się nie słyszą, u B różnica mocy 5,7 dB,
 8 rund jednoczesnych broadcastów): z kolizjami B traci oba pakiety w 6 z 8 rund (w 2 rundach

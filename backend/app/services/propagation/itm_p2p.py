@@ -23,7 +23,7 @@ def compute_path_loss_db(
     fmhz: float,
     *,
     climate_klim: int = 5,
-    ipol: int = 0,
+    ipol: int = 1,
     reliability_percent: float = 50,
     confidence_percent: float = 50,
 ) -> float:

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "meshtastic-routing-sim"
 version = "0.1.0"
-description = "Meshtastic routing simulator: ITM+SRTM, fading, meshtasticd shards"
+description = "Meshtastic routing simulator: ITM+NMT GUGiK, fading, meshtasticd shards"
 requires-python = ">=3.11"
 # Single source of runtime dependencies (also used by backend/Dockerfile).
 dynamic = ["dependencies"]

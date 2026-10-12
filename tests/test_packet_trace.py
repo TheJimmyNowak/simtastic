@@ -53,6 +53,15 @@ def sim_tx_packet(
     return packet
 
 
+def flush(gw: RadioGateway) -> None:
+    """Wykonuje od razu zaplanowane doręczenia (odbiór następuje po czasie w eterze)."""
+    with gw._scheduler._cv:
+        tasks = sorted(gw._scheduler._queue)
+        gw._scheduler._queue.clear()
+    for _, _, task in tasks:
+        task()
+
+
 def line_gateway() -> tuple[RadioGateway, dict[str, FakeIface]]:
     """A - B - C in a line: A and C cannot hear each other."""
     nodes = [NodeConfig(id=i, lat=52.0, lon=21.0 + k * 0.01) for k, i in enumerate("abc")]
@@ -77,6 +86,7 @@ def test_simulator_tx_is_forwarded_as_simulator_app() -> None:
     packet_trace_service.clear()
     gw, ifaces = line_gateway()
     gw._on_mesh_packet(sim_tx_packet(packet_id=5, origin_hw=HW_ID_OFFSET, hop_limit=3), ifaces["a"])
+    flush(gw)
 
     assert [len(ifaces[n].sent) for n in "abc"] == [0, 1, 0]
     injected = ifaces["b"].sent[0].packet
@@ -92,7 +102,9 @@ def test_rebroadcast_is_propagated_from_relay_position() -> None:
     packet_trace_service.clear()
     gw, ifaces = line_gateway()
     gw._on_mesh_packet(sim_tx_packet(packet_id=9, origin_hw=HW_ID_OFFSET, hop_limit=3), ifaces["a"])
+    flush(gw)
     gw._on_mesh_packet(sim_tx_packet(packet_id=9, origin_hw=HW_ID_OFFSET, hop_limit=2), ifaces["b"])
+    flush(gw)
 
     assert len(ifaces["c"].sent) == 1
     assert ifaces["c"].sent[0].packet.hop_limit == 2
@@ -123,6 +135,7 @@ def test_injected_snr_is_saturated() -> None:
     """Nienasycony SNR (tu 300 dB budżetu) wydłużał opóźnienie retransmisji w firmware."""
     gw, ifaces = line_gateway()
     gw._on_mesh_packet(sim_tx_packet(packet_id=7, origin_hw=HW_ID_OFFSET, hop_limit=3), ifaces["a"])
+    flush(gw)
     assert ifaces["b"].sent[0].packet.rx_snr == pytest.approx(LORA_SNR_MAX_DB)
 
 
@@ -219,6 +232,7 @@ def test_packets_api_returns_trace(tmp_path) -> None:
     gw.attach_node("b", FakeIface(), 1)
     gw.start()
     gw._on_mesh_packet(sim_tx_packet(packet_id=7, origin_hw=HW_ID_OFFSET, hop_limit=3), iface)
+    flush(gw)
     gw.stop()
 
     scenario_store.update(
@@ -252,3 +266,37 @@ def test_packet_attempt_lookup_isolated_by_scenario() -> None:
     attempts = packet_trace_service.list_attempts_for_packet(42, "one")
     assert len(attempts) == 1
     assert attempts[0].scenario_id == "one"
+
+
+def test_deferred_rebroadcast_is_cancelled_by_duplicate() -> None:
+    """B i C retransmitują pakiet A; C czeka (CAD) na koniec B, słyszy duplikat i rezygnuje."""
+    packet_trace_service.clear()
+    nodes = [NodeConfig(id=i, lat=52.0, lon=21.0 + k * 0.001) for k, i in enumerate("abc")]
+    pl = np.full((3, 3), 100.0)
+    matrix = LinkMatrix(
+        node_ids=["a", "b", "c"],
+        path_loss_median_db=pl,
+        distance_m=np.full((3, 3), 100.0),
+        median_rssi_db=-pl,
+        connectivity_neighbors={"a": ["b", "c"], "b": ["a", "c"], "c": ["a", "b"]},
+    )
+    gw = RadioGateway("sc-cancel", "exp1", nodes, matrix, fading_sigma_db=0.0)
+    gw.set_lora(EnvironmentConfig(preset="SHORT_TURBO").resolve_lora())  # ok. 30 ms w eterze
+    gw.configure_medium(collisions_enabled=True, capture_threshold_db=6.0)
+    ifaces = {node_id: FakeIface() for node_id in "abc"}
+    for index, node_id in enumerate("abc"):
+        gw.attach_node(node_id, ifaces[node_id], index)
+    gw._rng = type("Fixed", (), {"randrange": staticmethod(lambda n: 3), "gauss": staticmethod(lambda m, s: 0.0)})()
+    gw.start()
+    gw._on_mesh_packet(sim_tx_packet(packet_id=31, origin_hw=HW_ID_OFFSET, hop_limit=3), ifaces["a"])
+    flush(gw)
+    time.sleep(0.1)  # A skończył nadawać
+    gw._on_mesh_packet(sim_tx_packet(packet_id=31, origin_hw=HW_ID_OFFSET, hop_limit=2), ifaces["b"])
+    time.sleep(0.015)  # C zgłasza w trakcie B, po oknie podatności CAD -> odroczenie
+    gw._on_mesh_packet(sim_tx_packet(packet_id=31, origin_hw=HW_ID_OFFSET, hop_limit=2), ifaces["c"])
+    flush(gw)
+    gw.stop()
+    # A słyszy tylko retransmisję B; retransmisja C nie weszła w eter.
+    assert len(ifaces["a"].sent) == 1
+    assert {(a.tx_node, a.rx_node) for a in packet_trace_service.list_recent_attempts(20)} >= {("b", "c")}
+    assert ("c", "a") not in {(a.tx_node, a.rx_node) for a in packet_trace_service.list_recent_attempts(20) if a.delivered}

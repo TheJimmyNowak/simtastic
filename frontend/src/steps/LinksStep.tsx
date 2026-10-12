@@ -24,8 +24,9 @@ export function LinksStep({ scenario, links, preset, dirty, onPrecompute, onNext
         <div>
           <h3>Macierz propagacji</h3>
           <p>
-            ITM (Longley–Rice) liczy straty terenowe z SRTM, a model ITU-R P.526 dodaje dyfrakcję na budynkach
-            przecinających strefę Fresnela. Wynik to medianowy RSSI dla każdej pary nadajnik → odbiornik.
+            ITM (Longley–Rice) liczy straty terenowe z numerycznego modelu terenu GUGiK, a model ITU-R P.526
+            dodaje dyfrakcję na budynkach LoD1 przecinających strefę Fresnela. Brakujące dane GUGiK pobierane
+            są automatycznie. Wynik to medianowy RSSI dla każdej pary nadajnik → odbiornik.
           </p>
         </div>
         <button className="button primary large" onClick={onPrecompute} disabled={!canCompute}>
@@ -34,7 +35,7 @@ export function LinksStep({ scenario, links, preset, dirty, onPrecompute, onNext
       </div>
 
       {scenario.nodes.length < 2 && <Callout kind="warning">Dodaj co najmniej dwa węzły.</Callout>}
-      {computing && <Progress done={scenario.progress_done} total={scenario.progress_total} unit="kierunków" />}
+      {computing && <Progress done={scenario.progress_done} total={scenario.progress_total} unit={scenario.progress_unit || "kierunków"} />}
       {!links && !computing && scenario.nodes.length >= 2 && (
         <Callout kind="info">Łącza nie są obliczone dla aktualnych ustawień scenariusza.</Callout>
       )}

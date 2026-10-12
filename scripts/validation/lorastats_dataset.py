@@ -157,7 +157,10 @@ def main() -> None:
         "hop_start": {k: dict(v) for k, v in hop_start.items()},
         "nodes": nodes_meta,
     }
-    path = args.dump_dir / f"dataset{'_' + args.since.replace(':', '') if args.since else ''}.json"
+    suffix = ("_" + args.since.replace(":", "") if args.since else "") + (
+        "_do" + args.until.replace(":", "") if args.until != "9999" else ""
+    )
+    path = args.dump_dir / f"dataset{suffix}.json"
     path.write_text(json.dumps(out), encoding="utf-8")
     print(f"{len(reports)} raportów, {len(positions)} węzłów z pozycją, {len(neighbors)} sąsiedztw -> {path}")
 

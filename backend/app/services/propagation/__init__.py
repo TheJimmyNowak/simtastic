@@ -6,7 +6,7 @@ from app.services.propagation.link_matrix import (
     load_link_matrix,
     save_link_matrix,
 )
-from app.services.propagation.srtm_profile import build_terrain_profile
+from app.services.propagation.gugik import BuildingProvider, TerrainProvider, terrain_provider
 from app.services.propagation.building_index import BuildingIndex
 from app.services.propagation.building_model import compute_building_path, resolve_node_mount
 
@@ -14,7 +14,9 @@ __all__ = [
     "LinkMatrix",
     "BuildingIndex",
     "build_connectivity_map",
-    "build_terrain_profile",
+    "BuildingProvider",
+    "TerrainProvider",
+    "terrain_provider",
     "compute_path_loss_db",
     "compute_building_path",
     "load_link_matrix",

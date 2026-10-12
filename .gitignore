@@ -16,3 +16,4 @@ scenarios/*.yaml
 frontend/tsconfig.tsbuildinfo
 data/lorastats/
 data/campaign/
+data/campaign_v3/

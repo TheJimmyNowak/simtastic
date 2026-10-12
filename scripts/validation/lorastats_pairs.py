@@ -18,7 +18,7 @@ from pathlib import Path
 from statistics import median
 
 from app.config import settings
-from app.services.propagation.srtm_profile import elevation_m
+from app.services.propagation.gugik import terrain_provider
 
 # Hash kanału (domyślny klucz) → preset w symulatorze; ShortSlow nie ma presetu w backendzie.
 PRESETS = {
@@ -66,7 +66,7 @@ def good_nodes(ds: dict) -> dict[str, dict]:
         ch = hashes.most_common(1)[0][0] if hashes else None
         if ch not in PRESETS:
             continue
-        ground = elevation_m(settings.srtm_cache_dir, *center)
+        ground = terrain_provider.elevation(*center)
         alts = [p["alt"] for p in pos_list if p["alt"] is not None]
         agl = median(alts) - ground if alts else None
         hop = Counter({int(k): v for k, v in ds["hop_start"].get(nid, {}).items()})

@@ -81,9 +81,13 @@ class EnvironmentConfig(BaseModel):
         description="Nadpisanie progu czułości odbiornika [dBm] używanego do delivered (RSSI).",
     )
     fading_sigma_db: float = Field(
-        default=8.0,
+        default=1.0,
         ge=0,
-        description="Odchylenie standardowe losowego cienia (shadow) w dB, N(0,σ²) na każdą transmisję w runtime.",
+        description=(
+            "Odchylenie standardowe fadingu [dB], N(0,σ²) na każdą transmisję w runtime. "
+            "Domyślnie 1 dB: rozrzut RSSI kolejnych pakietów na łączach stacjonarnych w danych "
+            "lorastats.pl (docs/test_campaign.md)."
+        ),
     )
     itm_climate: int = Field(
         default=5,
@@ -92,10 +96,10 @@ class EnvironmentConfig(BaseModel):
         description="Klimat ITM (1–7), parametr Longley–Rice przy precompute.",
     )
     itm_polarization: int = Field(
-        default=0,
+        default=1,
         ge=0,
         le=1,
-        description="Polaryzacja ITM (0/1), parametr Longley–Rice.",
+        description="Polaryzacja ITM (0 – pozioma, 1 – pionowa), parametr Longley–Rice.",
     )
     connectivity_threshold_dbm: float = Field(
         default=-140.0,
@@ -137,6 +141,24 @@ class EnvironmentConfig(BaseModel):
             "Odchylenie trwałego cieniowania łącza [dB]: losowane raz na parę węzłów przy "
             "precompute (to samo w obu kierunkach), w odróżnieniu od fadingu losowanego "
             "na każdą transmisję."
+        ),
+    )
+    node_installation_sigma_db: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Odchylenie straty instalacji węzła [dB] (antena w budynku, kable, otoczenie masztu): "
+            "losowane raz na węzeł i doliczane do wszystkich jego łączy, w obu kierunkach. "
+            "Seed jak cieniowanie łącza."
+        ),
+    )
+    link_blocked_fraction: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Odsetek par węzłów bez łącza bezpośredniego niezależnie od propagacji (model mieszaniny "
+            "z kalibracji). Losowane raz na parę, symetrycznie; seed jak cieniowanie łącza."
         ),
     )
     link_shadowing_seed: int | None = Field(

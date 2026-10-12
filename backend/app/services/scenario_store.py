@@ -13,7 +13,7 @@ from app.models.scenario import Scenario, ScenarioCreate, ScenarioStatus
 from app.services.scenario_slug import slugify_scenario_id
 
 
-_RUNTIME_FIELDS = {"progress_done", "progress_total"}
+_RUNTIME_FIELDS = {"progress_done", "progress_total", "progress_unit"}
 
 
 class ScenarioStore:
@@ -134,13 +134,17 @@ class ScenarioStore:
         s.updated_at = datetime.now(timezone.utc)
         self.update(s)
 
-    def set_progress(self, scenario_id: str, done: int, total: int) -> None:
-        """Postęp długiej operacji (precompute / start) — tylko w pamięci, bez zapisu YAML."""
+    def set_progress(self, scenario_id: str, done: int, total: int, unit: str = "") -> None:
+        """Postęp długiej operacji (precompute / start) — tylko w pamięci, bez zapisu YAML.
+
+        `unit` nazywa bieżący etap (np. „zapytań NMT”); pusty — jednostkę dobiera interfejs.
+        """
         s = self.get(scenario_id)
         if not s:
             return
         s.progress_done = done
         s.progress_total = total
+        s.progress_unit = unit
 
 
 scenario_store = ScenarioStore()

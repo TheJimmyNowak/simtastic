@@ -101,6 +101,7 @@ def compute_scenario_fingerprint(nodes, environment) -> str:
         "custom_sensitivity_dbm", "itm_climate", "itm_polarization",
         "connectivity_threshold_dbm", "building_model_enabled", "fresnel_clearance_ratio",
         "clutter_loss_db", "link_shadowing_sigma_db", "link_shadowing_seed",
+        "node_installation_sigma_db", "link_blocked_fraction",
     )
     payload = {
         "nodes": [
@@ -110,7 +111,9 @@ def compute_scenario_fingerprint(nodes, environment) -> str:
         "environment": {
             field: getattr(environment, field) for field in environment_fields
         },
-        "model_version": 5,
+        # Źródło terenu jest ustawieniem backendu, a nie scenariusza — też unieważnia macierz.
+        "terrain": {"source": "gugik-nmt", "step_m": settings.terrain_profile_step_m},
+        "model_version": 6,
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()

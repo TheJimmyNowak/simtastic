@@ -87,7 +87,7 @@ export function EnvironmentStep({ draft, presets, disabled, onChange, onNext }: 
             value={env.clutter_loss_db}
             min={0}
             step={1}
-            hint="Doliczana do każdego łącza: zabudowa i roślinność spoza SRTM, anteny w budynkach."
+            hint="Doliczana do każdego łącza: roślinność i zabudowa spoza danych LoD1, anteny w budynkach."
             onChange={(v) => setEnv({ clutter_loss_db: v ?? 0 })}
           />
           <NumberField

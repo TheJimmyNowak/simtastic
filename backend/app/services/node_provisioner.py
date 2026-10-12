@@ -79,17 +79,12 @@ def provision_node(
     time.sleep(ADMIN_GAP_S)
 
     device_cfg = local.localConfig.device
+    # Okresy NodeInfo i pozycji zostają domyślne (firmware: 3 h i 15 min). Krótsze okresy
+    # zalewały kanał ruchem tła, którego w sieci nie ma; wymianę NodeInfo zapewnia rozgrzewka
+    # (SimulationManager._warm_up).
     device_cfg.role = Role.Value(node.role.value)
-    device_cfg.node_info_broadcast_secs = 90
     p = admin_pb2.AdminMessage()
     p.set_config.device.CopyFrom(device_cfg)
-    local._sendAdmin(p)
-    time.sleep(ADMIN_GAP_S)
-
-    pos_cfg = local.localConfig.position
-    pos_cfg.position_broadcast_secs = 90
-    p = admin_pb2.AdminMessage()
-    p.set_config.position.CopyFrom(pos_cfg)
     local._sendAdmin(p)
     time.sleep(ADMIN_GAP_S)
 

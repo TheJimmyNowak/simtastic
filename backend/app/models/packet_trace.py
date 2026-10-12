@@ -15,6 +15,8 @@ class PacketOtaTx(BaseModel):
     portnum: Optional[str] = None
     payload_len: int = 0
     is_rebroadcast: bool = False
+    # Czas od odebrania zgłoszenia z TCP do jego obsługi (kolejka wątku biblioteki) [ms].
+    report_delay_ms: Optional[float] = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class LinkAttempt(BaseModel):
@@ -23,6 +25,9 @@ class LinkAttempt(BaseModel):
     packet_id: int
     tx_node: str
     rx_node: str
+    # Pierwotny nadawca: węzły meshtasticd potrafią wylosować to samo id pakietu, więc
+    # pakiet identyfikuje dopiero para (origin_node, packet_id) — jak w firmware.
+    origin_node: Optional[str] = None
     path_loss_median_db: float
     terrain_loss_db: float = 0.0
     building_diffraction_db: float = 0.0

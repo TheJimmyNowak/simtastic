@@ -1,5 +1,8 @@
 # Kampania testowa 8.10.2026
 
+> Wyniki tej kampanii są zastąpione przez [kampanię v3](test_campaign_v3.md): analiza myliła
+> pakiety o tym samym id, a istotność porównań zakładała niezależność par.
+
 Ponowny test symulatora po dodaniu modelu kolizji i budynków. Główna różnica w stosunku do
 [walidacji z 7.10](validation_lorastats.md): **nowy, niezależny w czasie zbiór danych** i brak
 jakiegokolwiek dopasowania parametrów — kalibracja z 7.10 (strata otoczenia 27 dB, cieniowanie

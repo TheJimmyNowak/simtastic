@@ -60,7 +60,7 @@ class Worker(threading.Thread):
         self.jobs = jobs
         self.out = out
         self.http = httpx.Client(base_url=self.base, timeout=60)
-        self.influx = InfluxDBClient(url=settings.influx_url, token=settings.influx_token, org=settings.influx_org)
+        self.influx = InfluxDBClient(url=settings.influx_url, token=settings.influx_token, org=settings.influx_org, timeout=300_000)
 
     def wait_status(self, sid: str, wanted: set[str], timeout: float) -> dict:
         deadline = time.monotonic() + timeout
@@ -112,6 +112,8 @@ class Worker(threading.Thread):
             },
             "tx": influx_rows(self.influx, "packet_ota_tx", rid, t["t0"], time.time()),
             "attempts": influx_rows(self.influx, "link_attempt", rid, t["t0"], time.time()),
+            # Odroczone retransmisje anulowane przez medium (zgłoszone w `tx`, ale nienadane).
+            "cancels": influx_rows(self.influx, "packet_ota_cancel", rid, t["t0"], time.time()),
         }
         self.http.delete(f"/api/scenarios/{sid}")
         return result
@@ -141,12 +143,17 @@ class Worker(threading.Thread):
                     self.http.delete(f"/api/scenarios/{sid}")
                 except Exception:
                     pass
+                # Chwilowa niedostępność usług (np. GUGiK, sieć): przebieg wraca do kolejki.
+                if job.get("_attempt", 0) < 2:
+                    job["_attempt"] = job.get("_attempt", 0) + 1
+                    time.sleep(60)
+                    self.jobs.put(job)
             finally:
                 self.jobs.task_done()
 
 
 def reexport(plan_path: Path, out: Path) -> None:
-    influx = InfluxDBClient(url=settings.influx_url, token=settings.influx_token, org=settings.influx_org)
+    influx = InfluxDBClient(url=settings.influx_url, token=settings.influx_token, org=settings.influx_org, timeout=300_000)
     for job in json.loads(plan_path.read_text(encoding="utf-8")):
         path = out / "runs" / f"{job['id']}.json"
         if not path.exists():

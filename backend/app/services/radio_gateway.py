@@ -6,8 +6,12 @@ import logging
 import random
 import threading
 import time
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any, Callable, Optional
 
+import meshtastic
+from google.protobuf import json_format
 from meshtastic import mesh_pb2, portnums_pb2, protocols as meshtastic_protocols
 from meshtastic.tcp_interface import TCPInterface
 from pubsub import pub
@@ -46,6 +50,35 @@ SIMULATOR_TOPIC = (
 # Zapas na transmisje zgłoszone przez inne węzły z opóźnieniem (TCP, wątek biblioteki):
 # odbiór jest rozstrzygany chwilę po końcu pakietu, gdy wszystkie nakładające się są znane.
 DECISION_GRACE_S = 0.05
+# Role, które nie anulują retransmisji po usłyszeniu duplikatu (FloodingRouter, fw 2.7).
+NON_CANCELLING_ROLES = {"ROUTER", "ROUTER_LATE"}
+
+# Biblioteka meshtastic obsługuje zgłoszenia wszystkich węzłów w jednym wątku publikującym,
+# więc czas obsługi zgłoszenia rośnie z obciążeniem. Chwilę nadania wyznacza moment odebrania
+# zgłoszenia z gniazda TCP (wstawienia do kolejki), a nie moment jego obsługi.
+_report_clock = SimpleNamespace(queued=None)
+
+
+def _install_report_clock() -> None:
+    executor = meshtastic.publishingThread
+    if getattr(executor, "_sim_report_clock", False):
+        return
+    original = executor.queueWork
+
+    def queue_work(callback):
+        queued = time.monotonic()
+
+        def run():
+            _report_clock.queued = queued
+            try:
+                callback()
+            finally:
+                _report_clock.queued = None
+
+        original(run)
+
+    executor.queueWork = queue_work
+    executor._sim_report_clock = True
 
 
 class _Scheduler:
@@ -113,6 +146,8 @@ class RadioGateway:
         self._lora = None
         self._medium: Optional[RadioMedium] = None
         self._scheduler = _Scheduler()
+        self._roles = {node.id: node.role.value for node in nodes}
+        _install_report_clock()
 
     def set_lora(self, lora) -> None:
         self._lora = lora
@@ -169,6 +204,12 @@ class RadioGateway:
         self.attach_node(node_id, iface, index)
         logger.info("Reconnected gateway to node %s on port %s", node_id, port)
         return iface
+
+    def send_node_info(self, node_id: str) -> None:
+        """Rozgłasza NodeInfo węzła (jak firmware przy starcie), przez jego klienta."""
+        iface = self._ifaces[node_id]
+        user = json_format.ParseDict(iface.getMyUser() or {}, mesh_pb2.User(), ignore_unknown_fields=True)
+        iface.sendData(user, portNum=portnums_pb2.PortNum.NODEINFO_APP, wantResponse=False)
 
     def activate(self) -> None:
         pub.subscribe(self._on_mesh_packet, SIMULATOR_TOPIC)
@@ -240,6 +281,8 @@ class RadioGateway:
         return portnums_pb2.PortNum.Name(inner.portnum), len(inner.data)
 
     def _handle_transmission(self, tx_id: str, packet: dict[str, Any]) -> None:
+        handled = time.monotonic()
+        reported = _report_clock.queued if _report_clock.queued is not None else handled
         portnum, payload_len = self._inner_payload(packet)
         packet_id = int(packet.get("id", 0))
         hop_limit = packet.get("hopLimit")
@@ -273,6 +316,7 @@ class RadioGateway:
             portnum=portnum,
             payload_len=payload_len,
             is_rebroadcast=is_rebroadcast,
+            report_delay_ms=round((handled - reported) * 1000.0, 2),
         )
         packet_trace_service.record_tx(tx_evt)
         influx_writer.write_packet_tx(tx_evt)
@@ -280,31 +324,48 @@ class RadioGateway:
         if self._lora is None:
             return
         attempts = [
-            self._simulate_link(tx_id, rx_id, packet_id)
+            self._simulate_link(tx_id, rx_id, packet_id, origin_id)
             for rx_id in self.link_matrix.connectivity_neighbors.get(tx_id, [])
             if rx_id != tx_id
         ]
+        airtime = self._airtime(packet)
         if self._medium is None:
-            self._deliver(attempts, packet, packet_id)
+            # Bez kolizji odbiór też następuje po czasie w eterze — ablacja zmienia wtedy
+            # wyłącznie straty, a nie opóźnienie dostarczenia.
+            self._scheduler.call_at(
+                reported + airtime + DECISION_GRACE_S,
+                lambda: self._deliver(attempts, packet, packet_id) if self._running else None,
+            )
             return
-        transmission = self._put_on_air(tx_id, packet_id, packet, attempts)
+        transmission = self._put_on_air(
+            tx_id, packet_id, reported, airtime, attempts, int(packet.get("from", 0))
+        )
         self._scheduler.call_at(
             transmission.end + DECISION_GRACE_S,
             lambda: self._resolve_reception(transmission, attempts, packet, packet_id),
         )
 
-    def _put_on_air(
-        self, tx_id: str, packet_id: int, packet: dict[str, Any], attempts: list[LinkAttempt]
-    ) -> Transmission:
-        """Rejestruje transmisję w medium; przy zajętym kanale emuluje CAD i odroczenie."""
+    def _airtime(self, packet: dict[str, Any]) -> float:
         lora = self._lora
         payload = (packet.get("decoded") or {}).get("payload", b"")
-        airtime = lora_airtime_s(
+        return lora_airtime_s(
             len(payload) + PACKET_HEADER_BYTES,
             lora.spreading_factor,
             lora.bandwidth_khz,
             lora.coding_rate,
         )
+
+    def _put_on_air(
+        self,
+        tx_id: str,
+        packet_id: int,
+        start: float,
+        airtime: float,
+        attempts: list[LinkAttempt],
+        origin: int | None = None,
+    ) -> Transmission:
+        """Rejestruje transmisję w medium; przy zajętym kanale emuluje CAD i odroczenie."""
+        lora = self._lora
         slot = slot_time_s(lora.spreading_factor, lora.bandwidth_khz)
 
         def backoff() -> float:
@@ -315,10 +376,11 @@ class RadioGateway:
         return self._medium.place(
             tx_id,
             packet_id,
-            time.monotonic(),
+            start,
             airtime,
             {a.rx_node: a.rssi_db for a in attempts},
             backoff,
+            origin,
         )
 
     def _resolve_reception(
@@ -328,17 +390,29 @@ class RadioGateway:
         packet: dict[str, Any],
         packet_id: int,
     ) -> None:
-        if not self._running:
+        if not self._running or transmission.cancelled:
             return
         for attempt in attempts:
             outcome = self._medium.outcome(transmission, attempt.rx_node)
             attempt.delivered = outcome == OUTCOME_OK
             attempt.loss_reason = None if attempt.delivered else outcome
+            if attempt.delivered and self._roles.get(attempt.rx_node) not in NON_CANCELLING_ROLES:
+                # Odbiorca słyszy duplikat, zanim jego odroczona retransmisja wejdzie w eter.
+                cancelled = self._medium.cancel_pending(
+                    attempt.rx_node, packet_id, transmission.end, transmission.origin
+                )
+                if cancelled is not None:
+                    influx_writer.write_tx_cancel(
+                        self.scenario_id, self.experiment_id, attempt.rx_node, packet_id, attempt.origin_node
+                    )
         self._deliver(attempts, packet, packet_id)
 
     def _deliver(self, attempts: list[LinkAttempt], packet: dict[str, Any], packet_id: int) -> None:
         receivers: list[tuple[NodeConfig, float, float]] = []
+        delivered_at = datetime.now(timezone.utc)
         for attempt in attempts:
+            # Czas próby = chwila rozstrzygnięcia odbioru (koniec pakietu), nie zgłoszenia nadania.
+            attempt.timestamp = delivered_at
             packet_trace_service.record_link_attempt(attempt)
             influx_writer.write_link_attempt(attempt)
             if attempt.delivered:
@@ -347,7 +421,9 @@ class RadioGateway:
         if receivers:
             self._forward_packet(receivers, packet, packet_id)
 
-    def _simulate_link(self, tx_id: str, rx_id: str, packet_id: int) -> LinkAttempt:
+    def _simulate_link(
+        self, tx_id: str, rx_id: str, packet_id: int, origin_id: Optional[str] = None
+    ) -> LinkAttempt:
         """Jedna próba odbioru: medianowa strata z macierzy + losowy fading N(0, σ²)."""
         tx_idx, rx_idx = self.link_matrix.index(tx_id), self.link_matrix.index(rx_id)
         tx_node, rx_node = self.nodes[tx_idx], self.nodes[rx_idx]
@@ -373,6 +449,7 @@ class RadioGateway:
             packet_id=packet_id,
             tx_node=tx_id,
             rx_node=rx_id,
+            origin_node=origin_id,
             path_loss_median_db=link.path_loss_db,
             terrain_loss_db=link.terrain_loss_db,
             building_diffraction_db=link.building_loss_db,

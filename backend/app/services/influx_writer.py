@@ -98,6 +98,8 @@ class InfluxWriter:
             .field("is_rebroadcast", tx.is_rebroadcast)
             .time(tx.timestamp)
         )
+        if tx.report_delay_ms is not None:
+            p = p.field("report_delay_ms", tx.report_delay_ms)
         if tx.hop_limit is not None:
             p = p.field("hop_limit", tx.hop_limit)
         if tx.hop_start is not None:
@@ -144,6 +146,23 @@ class InfluxWriter:
                     point = point.tag("node_count", str(self._node_count))
                 self.enqueue_point(point)
 
+    def write_tx_cancel(
+        self, scenario_id: str, experiment_id: str, tx_node: str, packet_id: int, origin_node: str | None
+    ) -> None:
+        """Odroczona retransmisja anulowana przez medium (duplikat usłyszany przed startem)."""
+        p = (
+            Point("packet_ota_cancel")
+            .tag("scenario_id", scenario_id)
+            .tag("experiment_id", experiment_id)
+            .tag("tx_node", tx_node)
+            .field("packet_id", packet_id)
+        )
+        if origin_node:
+            p = p.tag("origin_node", origin_node)
+        if self._node_count is not None:
+            p = p.tag("node_count", str(self._node_count))
+        self.enqueue_point(p)
+
     def write_link_attempt(self, att: LinkAttempt) -> None:
         p = (
             Point("link_attempt")
@@ -163,6 +182,8 @@ class InfluxWriter:
             .time(att.timestamp)
         )
         p = p.tag("propagation_model", att.propagation_model)
+        if att.origin_node:
+            p = p.tag("origin_node", att.origin_node)
         if att.loss_reason:
             p = p.tag("loss_reason", att.loss_reason)
         if att.fresnel_clearance_m is not None:

@@ -51,9 +51,9 @@ def resolve_node_mount(
     containing = [building for building in candidates if point_in_polygon(x, y, building.footprint)]
     if containing:
         building = max(containing, key=lambda item: item.roof_z_m)
-        # Keep the vertical datum consistent with the SRTM terrain used by ITM.
-        # CityGML measuredHeight is relative, so add it to the local SRTM ground
-        # instead of mixing native PL-EVRF2007-NH roof elevations with EGM96.
+        # Put the roof on the same NMT ground that the ITM profile uses. NMT heights are
+        # PL-KRON86-NH and CityGML PL-EVRF2007-NH (centimetres apart), and the relative
+        # measuredHeight keeps one source of ground height for the whole link.
         roof_z = terrain_z_m + building.height_m
         return NodeMount(x, y, roof_z + mast_height_m, roof_z, "rooftop", building.source_id)
     return NodeMount(x, y, terrain_z_m + mast_height_m, terrain_z_m, "terrain", None)

@@ -49,7 +49,6 @@ services:
       INFLUX_TOKEN: meshtastic-dev-token
       INFLUX_ORG: meshtastic
       INFLUX_BUCKET: meshtastic_sim
-      SRTM_CACHE_DIR: /app/data/srtm_cache
       SCENARIOS_DIR: /app/scenarios
       DATA_DIR: /app/data
       MESHTASTIC_IMAGE: meshtastic/meshtasticd:latest

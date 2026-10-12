@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import random
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional
@@ -201,6 +203,26 @@ class SimulationManager:
                 self._cancel_start.set()  # let the remaining tasks stop early
                 raise
 
+    def _warm_up(self, scenario: Scenario, gateway: RadioGateway) -> None:
+        """Wymiana NodeInfo przed ruchem badanym.
+
+        Sieć rzeczywista jest w stanie ustalonym: węzły znają się nawzajem (NodeDB, klucze
+        publiczne, węzły pośredniczące). Każdy węzeł rozgłasza swoje NodeInfo w losowej chwili
+        okna o długości proporcjonalnej do liczby węzłów, a ruch startuje po krótkiej przerwie.
+        """
+        n = len(scenario.nodes)
+        window = max(settings.sim_nodeinfo_window_s, settings.sim_nodeinfo_gap_s * n)
+        rng = random.Random(scenario.environment.random_seed)
+        schedule = sorted((rng.uniform(0.0, window), node.id) for node in scenario.nodes)
+        t0 = time.monotonic()
+        for at, node_id in schedule:
+            self._sleep_interruptible(max(0.0, t0 + at - time.monotonic()))
+            try:
+                gateway.send_node_info(node_id)
+            except Exception as exc:
+                logger.warning("NodeInfo warm-up from %s failed: %s", node_id, exc)
+        self._sleep_interruptible(max(0.0, t0 + window - time.monotonic()) + settings.sim_traffic_warmup_s)
+
     def _start_traffic(self, scenario: Scenario, gateway: RadioGateway, traffic_file: Path | None) -> None:
         if traffic_file is None:
             traffic_file = settings.data_dir / "scenarios" / scenario.id / "traffic.yaml"
@@ -238,11 +260,12 @@ class SimulationManager:
         gateway.configure_medium(env.collisions_enabled, env.capture_threshold_db)
         with self._lock:
             self._gateway = gateway
-        self._prepare_nodes(scenario, matrix, containers, gateway)
-
+        # Gateway działa już w trakcie konfiguracji: transmisje węzłów po restarcie (NodeInfo
+        # przy starcie firmware) docierają do węzłów, które są już podłączone.
         gateway.activate()
         gateway.start()
-        self._sleep_interruptible(settings.sim_traffic_warmup_s)
+        self._prepare_nodes(scenario, matrix, containers, gateway)
+        self._warm_up(scenario, gateway)
         self._start_traffic(scenario, gateway, traffic_file)
 
         with self._lock:

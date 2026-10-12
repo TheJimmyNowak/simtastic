@@ -45,7 +45,9 @@ def load_runs(campaign: Path, kind: str) -> list[dict]:
 
 def sim_observations(run: dict, pairs: list[dict]) -> dict[tuple[str, str], dict]:
     """{(nadawca, bramka): {"sent": n, "obs": [(skoki, przekaźnik, opóźnienie)]}} dla jednego przebiegu."""
-    tx_by_key = {(t["tx_node"], t["packet_id"]): t for t in run["tx"]}
+    # Pakiet identyfikuje para (nadawca pierwotny, id): węzły meshtasticd potrafią wylosować to
+    # samo id (pakiety firmware: NodeInfo, pozycja), więc samo id myli pakiety różnych węzłów.
+    tx_by_key = {(t["tx_node"], t.get("origin_node"), t["packet_id"]): t for t in run["tx"]}
     originals = [
         t for t in run["tx"]
         if not t["is_rebroadcast"] and t.get("portnum") in PROBE_PORTS and t.get("origin_node") == t["tx_node"]
@@ -54,7 +56,7 @@ def sim_observations(run: dict, pairs: list[dict]) -> dict[tuple[str, str], dict
     for a in run["attempts"]:
         if a["delivered"] != "True":
             continue
-        key = (a["packet_id"], a["rx_node"])
+        key = (a.get("origin_node"), a["packet_id"], a["rx_node"])
         if key not in first_rx:  # wiersze są posortowane po czasie
             first_rx[key] = a
     out = {}
@@ -63,10 +65,10 @@ def sim_observations(run: dict, pairs: list[dict]) -> dict[tuple[str, str], dict
         sent = [t for t in originals if t["tx_node"] == src]
         obs = []
         for t in sent:
-            a = first_rx.get((t["packet_id"], gw))
+            a = first_rx.get((src, t["packet_id"], gw))
             if a is None:
                 continue
-            relay_tx = tx_by_key.get((a["tx_node"], t["packet_id"]))
+            relay_tx = tx_by_key.get((a["tx_node"], src, t["packet_id"]))
             if relay_tx is None or relay_tx.get("hop_start") is None:
                 continue
             hops = int(relay_tx["hop_start"]) - int(relay_tx.get("hop_limit") or 0)
@@ -156,21 +158,61 @@ def routing_metrics(rows: list[dict]) -> dict:
     return out
 
 
+def report_delay(run: dict) -> dict:
+    """Opóźnienie obsługi zgłoszeń transmisji w backendzie (kolejka wątku biblioteki)."""
+    delays = [t["report_delay_ms"] for t in run["tx"] if t.get("report_delay_ms") is not None]
+    if not delays:
+        return {}
+    return {
+        "report_delay_ms_median": float(np.median(delays)),
+        "report_delay_ms_p99": float(np.quantile(delays, 0.99)),
+        "report_delay_ms_max": float(np.max(delays)),
+    }
+
+
 def per_run_metrics(run: dict, cluster: dict) -> dict:
     rows = pair_table([run], cluster)
     m = routing_metrics(rows)
     loss = Counter(a.get("loss_reason") or "ok" for a in run["attempts"])
     total = sum(loss.values()) or 1
     m["attempt_outcomes"] = {k: v / total for k, v in loss.items()}
-    m["tx_total"] = len(run["tx"])
+    m["tx_total"] = len(run["tx"]) - len(run.get("cancels", []))
+    m.update(report_delay(run))
     m["rebroadcast_share"] = float(np.mean([t["is_rebroadcast"] for t in run["tx"]])) if run["tx"] else float("nan")
     m["start_s"] = run["timing"]["running"] - run["timing"]["precomputed"]
     m["precompute_s"] = run["timing"]["precomputed"] - run["timing"]["t0"]
     return m
 
 
+def sign_flip_test(diff: np.ndarray, groups: list, n_perm: int = 20000, seed: int = 0) -> float:
+    """Dwustronny test permutacyjny średniej różnicy, z jednostką losowania = grupa.
+
+    Pary z tą samą bramką (albo z jednego klastra) nie są niezależne, więc znak zmieniany
+    jest dla średniej całej grupy. Przy ≤ 16 grupach liczony dokładnie (wszystkie 2^k znaków).
+    """
+    by: dict = defaultdict(list)
+    for d, g in zip(diff, groups):
+        by[g].append(d)
+    means = np.array([np.mean(v) for v in by.values()])
+    k = len(means)
+    if k < 2 or np.all(means == 0):
+        return float("nan")
+    observed = abs(means.mean())
+    if k <= 16:
+        signs = np.array([[1 if (m >> i) & 1 else -1 for i in range(k)] for m in range(2**k)])
+    else:
+        signs = np.random.default_rng(seed).choice([-1, 1], size=(n_perm, k))
+    stats_perm = np.abs((signs * means).mean(axis=1))
+    return float(np.mean(stats_perm >= observed - 1e-12))
+
+
 def paired_comparison(rows_a: list[dict], rows_b: list[dict], key: str) -> dict:
-    """Test Wilcoxona dla par osiągniętych w obu wariantach: |błąd| metryki `key`."""
+    """|błąd| metryki `key` w wariantach A i B na parach osiągniętych w obu.
+
+    Istotność: test permutacyjny po bramkach i po klastrach (`sign_flip_test`). Test Wilcoxona
+    na parach zostaje tylko dla porównania z poprzednią kampanią — zakłada niezależność par,
+    której nie ma.
+    """
     def err(r):
         if key == "direct":
             return abs(r["sim_direct_frac"] - float(r["real_mode_direct"]))
@@ -180,15 +222,32 @@ def paired_comparison(rows_a: list[dict], rows_b: list[dict], key: str) -> dict:
     common = sorted(set(a) & set(b))
     ea = np.array([err(a[k]) for k in common])
     eb = np.array([err(b[k]) for k in common])
-    if len(common) < 3 or np.all(ea == eb):
-        return {"n": len(common), "mean_err_a": float(ea.mean()) if len(common) else float("nan"),
-                "mean_err_b": float(eb.mean()) if len(common) else float("nan"), "p_wilcoxon": float("nan")}
-    return {
+    out = {
         "n": len(common),
-        "mean_err_a": float(ea.mean()),
-        "mean_err_b": float(eb.mean()),
-        "p_wilcoxon": float(sps.wilcoxon(ea, eb).pvalue),
+        "n_gateways": len({a[k]["rx"] for k in common}),
+        "n_clusters": len({a[k]["cluster"] for k in common}),
+        "mean_err_a": float(ea.mean()) if len(common) else float("nan"),
+        "mean_err_b": float(eb.mean()) if len(common) else float("nan"),
     }
+    if len(common) < 3 or np.all(ea == eb):
+        return {**out, "p_gateway": float("nan"), "p_cluster": float("nan"), "p_wilcoxon_pairs": float("nan")}
+    diff = ea - eb
+    return {
+        **out,
+        "p_gateway": sign_flip_test(diff, [(a[k]["cluster"], a[k]["rx"]) for k in common]),
+        "p_cluster": sign_flip_test(diff, [a[k]["cluster"] for k in common]),
+        "p_wilcoxon_pairs": float(sps.wilcoxon(ea, eb).pvalue),
+    }
+
+
+def holm(pvalues: dict[str, float]) -> dict[str, float]:
+    """Korekta Holma–Bonferroniego dla rodziny porównań (NaN pomijane)."""
+    items = sorted(((p, k) for k, p in pvalues.items() if p == p), key=lambda t: t[0])
+    m, running, out = len(items), 0.0, {}
+    for i, (p, k) in enumerate(items):
+        running = max(running, min(1.0, (m - i) * p))
+        out[k] = running
+    return out
 
 
 def repeatability(runs: list[dict], cluster: dict) -> dict:
@@ -252,7 +311,7 @@ def routing_report(campaign: Path, clusters_path: Path) -> dict:
             "precompute_s_mean": float(np.mean([r["timing"]["precomputed"] - r["timing"]["t0"] for r in vruns])),
             "runs": len(vruns),
         }
-    for a, b in (("phys", "cal"), ("cal", "calnc"), ("cal", "calnb"), ("phys", "physnb")):
+    for a, b in (("phys", "cal"), ("cal", "mix"), ("cal", "calnc"), ("cal", "calnb")):
         if a in pooled_rows and b in pooled_rows:
             rows_a = pooled_rows[a]
             keys_b = {(r["tx"], r["rx"]) for r in pooled_rows[b]}
@@ -261,6 +320,14 @@ def routing_report(campaign: Path, clusters_path: Path) -> dict:
                 "direct": paired_comparison(rows_a, pooled_rows[b], "direct"),
                 "hops": paired_comparison(rows_a, pooled_rows[b], "hops"),
             }
+    family = {
+        f"{name}/{metric}": comp[metric]["p_gateway"]
+        for name, comp in report["comparisons"].items()
+        for metric in ("direct", "hops")
+    }
+    for key, adjusted in holm(family).items():
+        name, metric = key.split("/")
+        report["comparisons"][name][metric]["p_gateway_holm"] = adjusted
     for variant in ("cal", "phys"):
         for cid, c in clusters.items():
             reps = [r for r in by_variant.get(variant, []) if r["job"]["cluster"] == cid and r["job"]["seed"] == 1]
@@ -292,15 +359,16 @@ def medium_report(campaign: Path) -> dict:
             lora_airtime_s(int(t.get("payload_len") or 0) + PACKET_HEADER_BYTES, lora.spreading_factor, lora.bandwidth_khz, lora.coding_rate)
             for t in r["tx"]
         ]
-        ids = {t["packet_id"] for t in originals}
-        att = [a for a in r["attempts"] if a["packet_id"] in ids]
+        ids = {(t["tx_node"], t["packet_id"]) for t in originals}
+        att = [a for a in r["attempts"] if (a.get("origin_node", a["tx_node"]), a["packet_id"]) in ids]
         outcomes = Counter(a.get("loss_reason") or "ok" for a in att)
         n_att = sum(outcomes.values()) or 1
         # Sondy (TEXT, chwile z procesu Poissona) osobno od pakietów firmware (NodeInfo,
         # pozycja), które przy wspólnym starcie kontenerów są nadawane synchronicznie.
-        text_ids = {t["packet_id"] for t in originals if t.get("portnum") == "TEXT_MESSAGE_APP"}
-        text_out = Counter(a.get("loss_reason") or "ok" for a in att if a["packet_id"] in text_ids)
-        fw_out = Counter(a.get("loss_reason") or "ok" for a in att if a["packet_id"] not in text_ids)
+        text_ids = {(t["tx_node"], t["packet_id"]) for t in originals if t.get("portnum") == "TEXT_MESSAGE_APP"}
+        key = lambda a: (a.get("origin_node", a["tx_node"]), a["packet_id"])  # noqa: E731
+        text_out = Counter(a.get("loss_reason") or "ok" for a in att if key(a) in text_ids)
+        fw_out = Counter(a.get("loss_reason") or "ok" for a in att if key(a) not in text_ids)
         rate_all = len(r["tx"]) / horizon if horizon > 0 else float("nan")
         tau = slot_time_s(lora.spreading_factor, lora.bandwidth_khz)
         # Obciążenie oferowane G: łączny czas nadawania / czas trwania (wszystkie pakiety,
@@ -343,12 +411,22 @@ def scale_report(campaign: Path) -> dict:
     for r in load_runs(campaign, "scale"):
         n = r["job"]["n_nodes"]
         texts = [t for t in r["tx"] if t.get("portnum") == "TEXT_MESSAGE_APP" and not t["is_rebroadcast"]]
-        reach, rebro = [], []
+        cancelled = Counter((c["tx_node"], c["packet_id"]) for c in r.get("cancels", []))
+        reach, rebro, cancels = [], [], []
         for t in texts:
-            got = {a["rx_node"] for a in r["attempts"] if a["packet_id"] == t["packet_id"] and a["delivered"] == "True"}
+            got = {
+                a["rx_node"] for a in r["attempts"]
+                if a["packet_id"] == t["packet_id"] and a.get("origin_node") == t["tx_node"] and a["delivered"] == "True"
+            }
             got.discard(t["tx_node"])
             reach.append(len(got) / (n - 1))
-            rebro.append(sum(1 for x in r["tx"] if x["packet_id"] == t["packet_id"] and x["is_rebroadcast"]))
+            reported = [
+                x for x in r["tx"]
+                if x["packet_id"] == t["packet_id"] and x.get("origin_node") == t["tx_node"] and x["is_rebroadcast"]
+            ]
+            dropped = sum(cancelled[(x["tx_node"], x["packet_id"])] > 0 for x in reported)
+            rebro.append(len(reported) - dropped)
+            cancels.append(dropped)
         loss = Counter(a.get("loss_reason") or "ok" for a in r["attempts"])
         total = sum(loss.values()) or 1
         med = np.array(r["links"]["median_rssi_db"], float)  # już ze stratą otoczenia i cieniowaniem
@@ -364,7 +442,10 @@ def scale_report(campaign: Path) -> dict:
                 "reach_mean": float(np.mean(reach)) if reach else float("nan"),
                 "reach_p10": float(np.quantile(reach, 0.1)) if reach else float("nan"),
                 "rebroadcasts_per_msg": float(np.mean(rebro)) if rebro else float("nan"),
-                "tx_total": len(r["tx"]),
+                "cancelled_per_msg": float(np.mean(cancels)) if cancels else float("nan"),
+                "tx_total": len(r["tx"]) - len(r.get("cancels", [])),
+                "tx_by_port": dict(Counter(t.get("portnum") for t in r["tx"])),
+                **report_delay(r),
                 "attempts": len(r["attempts"]),
                 "mean_degree": float(np.sum(med >= sens) / n),
                 "outcomes": {k: v / total for k, v in loss.items()},

@@ -21,6 +21,7 @@ from app.services.propagation.building_model import (
     compute_building_path,
     resolve_node_mount,
 )
+from app.services.propagation.gugik import BuildingProvider, terrain_provider
 from app.services.propagation.itm_p2p import compute_path_loss_db
 from app.services.propagation.link_matrix import (
     LinkMatrix,
@@ -28,13 +29,13 @@ from app.services.propagation.link_matrix import (
     compute_scenario_fingerprint,
     save_link_matrix,
 )
-from app.services.propagation.srtm_profile import build_terrain_profile, elevation_m
 from app.services.rf_link_model import compute_rssi_db
 from app.services.scenario_store import scenario_store
 
 logger = logging.getLogger(__name__)
 
-ProgressCallback = Callable[[int, int], None]
+# (wykonane, wszystkie, jednostka) — etapy: powiaty z budynkami, zapytania NMT, kierunki ITM.
+ProgressCallback = Callable[[int, int, str], None]
 
 
 @dataclass(frozen=True)
@@ -58,7 +59,8 @@ def _antenna_height_agl(
 
 
 def _pair_task(
-    srtm_dir: str,
+    profile: list[float],
+    distance_m: float,
     building_db: Optional[str],
     env_dict: dict,
     i: int,
@@ -68,10 +70,14 @@ def _pair_task(
     mount_i: Optional[dict],
     mount_j: Optional[dict],
 ) -> PairResult:
-    """Run in a worker process: one terrain profile and building pass per pair.
+    """Run in a worker process: ITM in both directions and one building pass per pair.
+
+    The terrain profile (NMT, from the node `i` to `j`) is fetched beforehand in the main
+    process, where the in-memory cache of `terrain_provider` lives.
 
     The building model is symmetric, so it is evaluated once. ITM (itmlogic) is not
-    exactly reciprocal (differences of a few dB), so both directions are computed.
+    exactly reciprocal (differences of a few dB). That is a numerical artefact — propagation
+    loss is reciprocal — so both directions are computed and averaged.
     """
     env = EnvironmentConfig.model_validate(env_dict)
     a = NodeConfig.model_validate(node_i)
@@ -80,7 +86,6 @@ def _pair_task(
     mount_b = NodeMount(**mount_j) if mount_j else None
     frequency = env.resolve_lora().frequency_mhz
 
-    profile, distance_m = build_terrain_profile(Path(srtm_dir), a.lat, a.lon, b.lat, b.lon)
     height_a = _antenna_height_agl(a, mount_a, profile[0])
     height_b = _antenna_height_agl(b, mount_b, profile[-1])
 
@@ -105,12 +110,13 @@ def _pair_task(
             env.fresnel_clearance_ratio,
             terrain_profile_m=profile,
         )
+    terrain_loss = 0.5 * (itm(profile, height_a, height_b) + itm(profile[::-1], height_b, height_a))
     return PairResult(
         i=i,
         j=j,
         distance_m=distance_m,
-        terrain_loss_ij_db=itm(profile, height_a, height_b),
-        terrain_loss_ji_db=itm(profile[::-1], height_b, height_a),
+        terrain_loss_ij_db=terrain_loss,
+        terrain_loss_ji_db=terrain_loss,
         buildings=buildings,
     )
 
@@ -131,15 +137,40 @@ def draw_link_shadowing(n: int, sigma_db: float, seed: int | None) -> np.ndarray
     return shadowing
 
 
+def draw_node_installation(n: int, sigma_db: float, seed: int | None) -> np.ndarray:
+    """Strata instalacji każdego węzła [dB], niezależna od cieniowania par (osobny strumień)."""
+    if sigma_db <= 0:
+        return np.zeros(n)
+    rng = np.random.default_rng(None if seed is None else [seed, 1])
+    return rng.normal(0.0, sigma_db, size=n)
+
+
+# Strata pary zablokowanej: daleko poniżej progu łączności, więc para nie ma krawędzi.
+BLOCKED_LINK_DB = 200.0
+
+
+def draw_blocked_pairs(n: int, fraction: float, seed: int | None) -> np.ndarray:
+    """Dodatkowa strata [dB] par zablokowanych (symetryczna, osobny strumień losowań)."""
+    blocked = np.zeros((n, n))
+    if fraction <= 0:
+        return blocked
+    rows, cols = np.triu_indices(n, k=1)
+    rng = np.random.default_rng(None if seed is None else [seed, 2])
+    hit = rng.random(rows.size) < fraction
+    blocked[rows[hit], cols[hit]] = BLOCKED_LINK_DB
+    blocked[cols[hit], rows[hit]] = BLOCKED_LINK_DB
+    return blocked
+
+
 def _resolve_mounts(
     nodes: list[NodeConfig], index: Optional[BuildingIndex]
 ) -> list[Optional[NodeMount]]:
     if index is None:
         return [None] * len(nodes)
-    srtm_dir = settings.srtm_cache_dir
+    ground = terrain_provider.elevations([(n.lat, n.lon) for n in nodes])
     return [
-        resolve_node_mount(index, n.lat, n.lon, elevation_m(srtm_dir, n.lat, n.lon), n.agl_m)
-        for n in nodes
+        resolve_node_mount(index, n.lat, n.lon, float(z), n.agl_m)
+        for n, z in zip(nodes, ground)
     ]
 
 
@@ -166,6 +197,11 @@ def precompute_link_matrix(
     terrain_loss = np.zeros((n, n), dtype=np.float64)
     building_loss = np.zeros((n, n), dtype=np.float64)
     link_shadowing = draw_link_shadowing(n, env.link_shadowing_sigma_db, env.link_shadowing_seed)
+    installation = draw_node_installation(n, env.node_installation_sigma_db, env.link_shadowing_seed)
+    # Cieniowanie łącza w macierzy obejmuje też instalacje obu węzłów (wszystko, czego ITM nie widzi).
+    link_shadowing = link_shadowing + installation[:, None] + installation[None, :]
+    link_shadowing = link_shadowing + draw_blocked_pairs(n, env.link_blocked_fraction, env.link_shadowing_seed)
+    np.fill_diagonal(link_shadowing, 0.0)
     median_rssi = np.full((n, n), -999.0, dtype=np.float64)
     distance_m = np.zeros((n, n), dtype=np.float64)
     blocked_count = np.zeros((n, n), dtype=np.int32)
@@ -173,16 +209,20 @@ def precompute_link_matrix(
     dominant_building = np.full((n, n), "", dtype=object)
     building_data_year = np.full((n, n), "", dtype=object)
 
+    def progress(unit: str) -> Callable[[int, int], None]:
+        return lambda done, total: on_progress(done, total, unit) if on_progress else None
+
+    pairs = [(i, j) for i in range(n) for j in range(i + 1, n)]
+    segments = [(nodes[i].lat, nodes[i].lon, nodes[j].lat, nodes[j].lon) for i, j in pairs]
     building_index: Optional[BuildingIndex] = None
     if env.building_model_enabled:
         building_index = BuildingIndex(settings.buildings_index_path)
-        building_index.build(settings.buildings_raw_dir)
+        BuildingProvider(building_index).ensure(segments, progress("powiatów z budynkami"))
     mounts = _resolve_mounts(nodes, building_index)
+    profiles = terrain_provider.profiles(segments, progress("zapytań NMT"))
 
-    pairs = [(i, j) for i in range(n) for j in range(i + 1, n)]
     total_directions = 2 * len(pairs)
     done = 0
-    srtm_dir = str(settings.srtm_cache_dir.resolve())
     building_db = str(settings.buildings_index_path.resolve()) if building_index else None
     env_dict = env.model_dump()
     node_dicts = [node.model_dump() for node in nodes]
@@ -196,10 +236,10 @@ def precompute_link_matrix(
     ) as pool:
         futures = [
             pool.submit(
-                _pair_task, srtm_dir, building_db, env_dict, i, j,
+                _pair_task, profile, distance, building_db, env_dict, i, j,
                 node_dicts[i], node_dicts[j], mount_dicts[i], mount_dicts[j],
             )
-            for i, j in pairs
+            for (i, j), (profile, distance) in zip(pairs, profiles)
         ]
         for future in as_completed(futures):
             r = future.result()
@@ -222,7 +262,7 @@ def precompute_link_matrix(
                 building_data_year[tx, rx] = b.data_year or ""
             done += 2
             if on_progress:
-                on_progress(done, total_directions)
+                on_progress(done, total_directions, "kierunków")
 
     node_ids = [node.id for node in nodes]
     matrix = LinkMatrix(
@@ -259,7 +299,9 @@ def run_precompute(scenario_id: str) -> None:
             scenario_id,
             scenario.nodes,
             scenario.environment,
-            on_progress=lambda done, total: scenario_store.set_progress(scenario_id, done, total),
+            on_progress=lambda done, total, unit: scenario_store.set_progress(
+                scenario_id, done, total, unit
+            ),
         )
         scenario_store.set_status(scenario_id, ScenarioStatus.LINKS_READY)
     except Exception as exc:

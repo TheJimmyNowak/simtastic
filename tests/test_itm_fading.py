@@ -9,8 +9,6 @@ from app.services.propagation.itm_p2p import compute_path_loss_db
 from app.services.propagation import itm_precompute
 from app.services.propagation.itm_precompute import _pair_task
 from app.services.propagation.link_matrix import build_connectivity_map
-from app.services.propagation.srtm_profile import build_terrain_profile
-from app.config import settings
 
 
 @pytest.fixture
@@ -20,16 +18,9 @@ def poland_nodes() -> tuple[NodeConfig, NodeConfig]:
     return a, b
 
 
-def test_srtm_profile_reads_cache(poland_nodes: tuple[NodeConfig, NodeConfig]) -> None:
+def test_itm_path_loss_positive(poland_nodes: tuple[NodeConfig, NodeConfig], offline_gugik) -> None:
     a, b = poland_nodes
-    profile, dist_m = build_terrain_profile(settings.srtm_cache_dir, a.lat, a.lon, b.lat, b.lon)
-    assert len(profile) >= 2
-    assert dist_m > 0
-
-
-def test_itm_path_loss_positive(poland_nodes: tuple[NodeConfig, NodeConfig]) -> None:
-    a, b = poland_nodes
-    profile, dist_m = build_terrain_profile(settings.srtm_cache_dir, a.lat, a.lon, b.lat, b.lon)
+    [(profile, dist_m)] = offline_gugik.profiles([(a.lat, a.lon, b.lat, b.lon)])
     pl = compute_path_loss_db(profile, dist_m / 1000.0, a.agl_m, b.agl_m, 915.0)
     assert pl > 0
 
@@ -72,7 +63,7 @@ def test_colocated_nodes_get_finite_path_loss() -> None:
     b = NodeConfig(id="b", lat=52.2297, lon=21.0122, agl_m=2.0)
     env = EnvironmentConfig(building_model_enabled=False)
     result = _pair_task(
-        str(settings.srtm_cache_dir), None, env.model_dump(), 0, 1,
+        [100.0] * 51, 0.0, None, env.model_dump(), 0, 1,
         a.model_dump(), b.model_dump(), None, None,
     )
     assert result.distance_m == 0
@@ -89,11 +80,11 @@ def test_noise_floor_and_sensitivity_are_consistent() -> None:
     assert lora.tx_power_dbm == pytest.approx(22.0)
 
 
-def test_terrain_profile_follows_srtm_resolution(poland_nodes: tuple[NodeConfig, NodeConfig]) -> None:
+def test_terrain_profile_follows_step(poland_nodes: tuple[NodeConfig, NodeConfig], offline_gugik) -> None:
     a, b = poland_nodes
-    profile, dist_m = build_terrain_profile(settings.srtm_cache_dir, a.lat, a.lon, b.lat, b.lon)
-    assert len(profile) - 1 >= dist_m / 90.0
-    short, _ = build_terrain_profile(settings.srtm_cache_dir, a.lat, a.lon, a.lat, a.lon + 0.001)
+    [(profile, dist_m)] = offline_gugik.profiles([(a.lat, a.lon, b.lat, b.lon)])
+    assert len(profile) - 1 >= dist_m / offline_gugik.step_m
+    [(short, _)] = offline_gugik.profiles([(a.lat, a.lon, a.lat, a.lon + 0.001)])
     assert len(short) - 1 == 50
 
 
@@ -136,3 +127,31 @@ def test_link_shadowing_enters_the_link_matrix(monkeypatch) -> None:
     assert np.allclose(shadowed.link_shadowing_db, expected)
     assert np.allclose(shadowed.path_loss_median_db, plain.path_loss_median_db + expected)
     assert shadowed.link(0, 2).link_shadowing_db == pytest.approx(expected[0, 2])
+
+
+def test_terrain_loss_is_reciprocal() -> None:
+    a = NodeConfig(id="a", lat=52.20, lon=20.95, agl_m=12.0)
+    b = NodeConfig(id="b", lat=52.25, lon=21.05, agl_m=3.0)
+    profile = [100.0 + 30.0 * abs(k - 20) / 20 for k in range(101)]
+    result = _pair_task(profile, 8000.0, None, EnvironmentConfig().model_dump(), 0, 1, a.model_dump(), b.model_dump(), None, None)
+    assert result.terrain_loss_ij_db == result.terrain_loss_ji_db
+
+
+def test_node_installation_loss_is_shared_by_all_links_of_a_node(monkeypatch) -> None:
+    monkeypatch.setattr(itm_precompute, "save_link_matrix", lambda scenario_id, matrix: None)
+    nodes = [NodeConfig(id=f"n{i}", lat=52.20, lon=20.95 + 0.01 * i, agl_m=6.0) for i in range(4)]
+    base = EnvironmentConfig(building_model_enabled=False, link_shadowing_seed=5)
+    plain = itm_precompute.precompute_link_matrix("t", nodes, base)
+    node = itm_precompute.precompute_link_matrix("t", nodes, base.model_copy(update={"node_installation_sigma_db": 10.0}))
+    u = itm_precompute.draw_node_installation(4, 10.0, seed=5)
+    delta = node.path_loss_median_db - plain.path_loss_median_db
+    assert delta[0, 1] == pytest.approx(u[0] + u[1])
+    assert delta[2, 3] == pytest.approx(delta[3, 2])
+
+
+def test_blocked_pairs_are_symmetric_and_reproducible() -> None:
+    first = itm_precompute.draw_blocked_pairs(30, 0.4, seed=3)
+    assert np.array_equal(first, first.T)
+    assert np.array_equal(first, itm_precompute.draw_blocked_pairs(30, 0.4, seed=3))
+    share = (first[np.triu_indices(30, k=1)] > 0).mean()
+    assert 0.3 < share < 0.5

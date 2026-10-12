@@ -58,3 +58,4 @@ class Scenario(BaseModel):
     # Postęp bieżącej operacji (precompute: kierunki ITM, start: węzły); nie jest zapisywany.
     progress_done: int = 0
     progress_total: int = 0
+    progress_unit: str = ""

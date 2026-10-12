@@ -19,12 +19,19 @@ from pathlib import Path
 from app.config import settings
 from app.services.propagation.building_index import BuildingIndex
 from app.services.propagation.building_model import resolve_node_mount, wgs84_to_epsg2180
-from app.services.propagation.srtm_profile import elevation_m
+from app.services.propagation.gugik import BuildingProvider, terrain_provider
 
-# Kalibracja z 7.10.2026 (docs/validation_lorastats.md) — w tej kampanii NIE jest dopasowywana.
-CALIBRATED = {"clutter_loss_db": 27.0, "link_shadowing_sigma_db": 20.0}
-PHYSICAL = {"clutter_loss_db": 0.0, "link_shadowing_sigma_db": 0.0}
-SEEDS = [1, 2, 3, 4, 5]
+# Kalibracja: calibrate.py na zbiorze kalibracyjnym (raporty sprzed 7.10.2026 17:35);
+# kampania używa jej bez dopasowywania. Ustawiana w main() z pliku --calibration.
+CALIBRATED = {"clutter_loss_db": float("nan"), "link_shadowing_sigma_db": float("nan"),
+              "node_installation_sigma_db": float("nan")}
+PHYSICAL = {"clutter_loss_db": 0.0, "link_shadowing_sigma_db": 0.0, "node_installation_sigma_db": 0.0}
+# Model mieszaniny z kalibracji (część par zablokowana): wariant wrażliwości T2, nie główny.
+MIXTURE = {"clutter_loss_db": float("nan"), "link_shadowing_sigma_db": float("nan"), "link_blocked_fraction": float("nan")}
+# Fading kolejnych pakietów zmierzony na łączach stacjonarnych (wcześniej przyjęte 8 dB).
+FADING_SIGMA_DB = 1.0
+SEEDS = list(range(1, 11))
+ABLATION_SEEDS = SEEDS[:5]
 PROBE_GAP_S = 5.0
 FIRST_PROBE_S = 20.0
 ROUNDS = 3
@@ -37,7 +44,7 @@ def cluster_nodes(cluster: dict, index: BuildingIndex, buildings: bool) -> list[
     całkowitą wysokość nad terenem."""
     out = []
     for n in cluster["nodes"]:
-        ground = elevation_m(settings.srtm_cache_dir, n["lat"], n["lon"])
+        ground = terrain_provider.elevation(n["lat"], n["lon"])
         mount = resolve_node_mount(index, n["lat"], n["lon"], ground, 0.0)
         building_h = mount.surface_z_m - ground if mount.placement == "rooftop" else 0.0
         agl = n["agl_m"]
@@ -77,9 +84,10 @@ def probe_schedule(node_ids: list[str], gateway: str) -> tuple[list[dict], float
 def routing_plan(clusters_path: Path) -> list[dict]:
     data = json.loads(clusters_path.read_text(encoding="utf-8"))
     index = BuildingIndex(settings.buildings_index_path)
-    index.build(settings.buildings_raw_dir)
     jobs = []
     for c in data["clusters"]:
+        lat_lon = [(n["lat"], n["lon"]) for n in c["nodes"]]
+        BuildingProvider(index).ensure([(*a, *b) for a in lat_lon for b in lat_lon if a < b])
         gw_counts: dict[str, int] = {}
         for p in c["pairs"]:
             gw_counts[p["rx"]] = gw_counts.get(p["rx"], 0) + 1
@@ -94,7 +102,7 @@ def routing_plan(clusters_path: Path) -> list[dict]:
             env = {
                 **c["environment"],
                 **model,
-                "fading_sigma_db": 8.0,
+                "fading_sigma_db": FADING_SIGMA_DB,
                 "random_seed": seed,
                 "link_shadowing_seed": seed,
                 "collisions_enabled": extra.pop("collisions", True),
@@ -117,16 +125,19 @@ def routing_plan(clusters_path: Path) -> list[dict]:
         for s in SEEDS:
             jobs.append(job("phys", PHYSICAL, s))
             jobs.append(job("cal", CALIBRATED, s))
+        for s in ABLATION_SEEDS:
             jobs.append(job("calnc", CALIBRATED, s, collisions=False))
+            jobs.append(job("mix", MIXTURE, s))
         for rep in (1, 2):
             jobs.append(job("cal", CALIBRATED, 1, rep))
             jobs.append(job("phys", PHYSICAL, 1, rep))
         if has_buildings:
-            for s in SEEDS:
+            # Kalibracja jest liczona z budynkami, więc wariant bez nich sprawdza, ile
+            # wnosi sama warstwa LoD1 (przy tej samej stracie otoczenia).
+            for s in ABLATION_SEEDS:
                 jobs.append(job("calnb", CALIBRATED, s, buildings=False, nodes=nodes_nb))
-                jobs.append(job("physnb", PHYSICAL, s, buildings=False, nodes=nodes_nb))
     # Najpierw podstawowe warianty wszystkich klastrów, potem ablacje i powtórzenia.
-    order = {"phys": 0, "cal": 0, "calnc": 1, "calnb": 2, "physnb": 2}
+    order = {"phys": 0, "cal": 0, "mix": 1, "calnc": 1, "calnb": 2}
     jobs.sort(key=lambda j: (j["rep"] > 0, order[j["variant"]], j["seed"], j["cluster"]))
     return jobs
 
@@ -189,8 +200,9 @@ def medium_plan() -> list[dict]:
 def sweep_plan(clusters_path: Path) -> list[dict]:
     """T6: czułość routingu na stratę otoczenia (σ cieniowania 20 dB, 3 seedy)."""
     jobs = []
-    for clutter in (10.0, 20.0, 35.0):
-        model = {"clutter_loss_db": clutter, "link_shadowing_sigma_db": 20.0}
+    base = CALIBRATED["clutter_loss_db"]
+    for clutter in (max(0.0, base - 10.0), max(0.0, base - 5.0), base + 10.0):
+        model = {**CALIBRATED, "clutter_loss_db": round(clutter, 1)}
         for j in routing_plan(clusters_path):
             if j["variant"] == "cal" and j["rep"] == 0 and j["seed"] <= 3:
                 j = json.loads(json.dumps(j))
@@ -232,7 +244,7 @@ def scale_plan() -> list[dict]:
                 "environment": {
                     "preset": "MEDIUM_FAST",
                     **CALIBRATED,
-                    "fading_sigma_db": 8.0,
+                    "fading_sigma_db": FADING_SIGMA_DB,
                     "random_seed": 1,
                     "link_shadowing_seed": 1,
                     "collisions_enabled": True,
@@ -251,7 +263,25 @@ def main() -> None:
     ap.add_argument("kind", choices=["routing", "medium", "sweep", "scale"])
     ap.add_argument("clusters", type=Path, nargs="?")
     ap.add_argument("-o", "--out", type=Path, required=True)
+    ap.add_argument("--calibration", type=Path, help="calibration.json z calibrate.py")
     args = ap.parse_args()
+    if args.calibration:
+        calibration = json.loads(args.calibration.read_text(encoding="utf-8"))
+        fit = calibration["fit"]
+        mix = calibration.get("fits", {}).get("mixture")
+        if mix:
+            MIXTURE.update(
+                clutter_loss_db=round(mix["clutter_loss_db"], 1),
+                link_shadowing_sigma_db=round(mix["link_shadowing_sigma_db"], 1),
+                link_blocked_fraction=round(mix["link_blocked_fraction"], 3),
+            )
+        CALIBRATED.update(
+            clutter_loss_db=round(fit["clutter_loss_db"], 1),
+            link_shadowing_sigma_db=round(fit["link_shadowing_sigma_db"], 1),
+            node_installation_sigma_db=round(fit.get("node_installation_sigma_db", 0.0), 1),
+        )
+    elif args.kind in ("routing", "sweep", "scale"):
+        ap.error("--calibration is required for this plan")
     jobs = {
         "routing": lambda: routing_plan(args.clusters),
         "medium": medium_plan,

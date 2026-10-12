@@ -1,3 +1,4 @@
+import io
 from pathlib import Path
 
 import pytest
@@ -43,11 +44,8 @@ def _citygml(buildings: list[tuple[str, list[tuple[float, float]], float, float]
 
 
 def _index(tmp_path: Path, buildings) -> BuildingIndex:
-    raw = tmp_path / "raw"
-    raw.mkdir()
-    (raw / "test.gml").write_text(_citygml(buildings), encoding="utf-8")
     index = BuildingIndex(tmp_path / "buildings.sqlite")
-    index.build(raw)
+    index.add_district("0000", "2024", [io.BytesIO(_citygml(buildings).encode("utf-8"))])
     return index
 
 

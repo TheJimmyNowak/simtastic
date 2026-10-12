@@ -75,6 +75,10 @@ class Transmission:
     start: float
     end: float
     rssi_at: dict[str, float] = field(default_factory=dict)
+    # Pierwotny nadawca (pole `from`): id pakietu jest unikalne tylko razem z nim.
+    origin: int | None = None
+    # Odroczona (CAD) retransmisja anulowana, bo węzeł usłyszał duplikat przed jej startem.
+    cancelled: bool = False
 
     def overlaps(self, other: "Transmission") -> bool:
         return self.start < other.end and other.start < self.end
@@ -148,6 +152,7 @@ class RadioMedium:
         airtime: float,
         rssi_at: dict[str, float],
         backoff: Callable[[], float],
+        origin: int | None = None,
     ) -> Transmission:
         """Emulacja CAD: przesuwa start za słyszalne transmisje (o `backoff()` po każdej)
         i rejestruje pakiet. Sprawdzenie i rejestracja są atomowe — zgłoszenia z wątków
@@ -155,9 +160,32 @@ class RadioMedium:
         with self._lock:
             while (busy_end := self._busy_until_locked(tx_id, start, start + airtime)) is not None:
                 start = busy_end + backoff()
-            transmission = Transmission(tx_id, packet_id, start, start + airtime, rssi_at)
+            transmission = Transmission(tx_id, packet_id, start, start + airtime, rssi_at, origin)
             self._add_locked(transmission)
         return transmission
+
+    def cancel_pending(
+        self, tx_id: str, packet_id: int, heard_at: float, origin: int | None = None
+    ) -> Transmission | None:
+        """Usuwa transmisję pakietu (`origin`, `packet_id`) węzła `tx_id`, która zaczyna się
+        po `heard_at`.
+
+        Prawdziwy węzeł przy zajętym kanale trzyma pakiet w kolejce i anuluje retransmisję,
+        gdy w tym czasie odbierze jej duplikat (`FloodingRouter::perhapsCancelDupe`).
+        Firmware w SimRadio zgłosił już ten pakiet, więc anulowanie wykonuje medium.
+        """
+        with self._lock:
+            for tx in self._air:
+                if (
+                    tx.tx_id == tx_id
+                    and tx.packet_id == packet_id
+                    and tx.origin == origin
+                    and tx.start > heard_at
+                ):
+                    self._air.remove(tx)
+                    tx.cancelled = True
+                    return tx
+        return None
 
     def outcome(self, transmission: Transmission, rx_id: str) -> str:
         """Wynik odbioru `transmission` przez `rx_id` po jej zakończeniu."""

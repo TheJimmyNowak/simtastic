@@ -63,6 +63,8 @@ export type Scenario = {
   nodes: NodeConfig[];
   progress_done: number;
   progress_total: number;
+  /** Bieżący etap długiej operacji (np. „zapytań NMT”); pusty — jednostka z widoku. */
+  progress_unit?: string;
   error_message?: string | null;
 };
 

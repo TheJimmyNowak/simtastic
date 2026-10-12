@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import fcntl
 import json
 import logging
 import math
 import sqlite3
 import xml.etree.ElementTree as ET
+from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
+from typing import IO, Iterable, Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -116,8 +119,8 @@ def _building_from_element(element: ET.Element) -> tuple[str, tuple, float, floa
     return source_id, footprint, ground_z, roof_z, height, data_year
 
 
-def iter_citygml(path: Path) -> Iterator[tuple[str, tuple, float, float, float, str | None]]:
-    for _, element in ET.iterparse(path, events=("end",)):
+def iter_citygml(source: Path | IO[bytes]) -> Iterator[tuple[str, tuple, float, float, float, str | None]]:
+    for _, element in ET.iterparse(source, events=("end",)):
         if element.tag == f"{BLDG}Building":
             building = _building_from_element(element)
             if building is not None:
@@ -126,6 +129,8 @@ def iter_citygml(path: Path) -> Iterator[tuple[str, tuple, float, float, float, 
 
 
 class BuildingIndex:
+    """Indeks SQLite/RTree budynków LoD1, uzupełniany powiatami (patrz `gugik.BuildingProvider`)."""
+
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
 
@@ -133,53 +138,78 @@ class BuildingIndex:
     def _connect(path: Path) -> sqlite3.Connection:
         return sqlite3.connect(path, timeout=60)
 
-    def build(self, raw_dir: Path, *, force: bool = False) -> int:
-        files = sorted(raw_dir.rglob("*.gml"))
-        if not files:
-            raise FileNotFoundError(f"No CityGML files in {raw_dir}")
-        newest_source = max(path.stat().st_mtime_ns for path in files)
-        if not force and self.db_path.exists():
+    def _ensure_schema(self) -> None:
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        if self.db_path.exists():
             try:
                 with self._connect(self.db_path) as db:
-                    metadata = dict(db.execute("SELECT key, value FROM metadata"))
-                    unchanged = (
-                        int(metadata.get("newest_source_mtime_ns", 0)) == newest_source
-                        and int(metadata.get("source_file_count", 0)) == len(files)
-                    )
-                    if unchanged:
-                        return int(metadata.get("building_count", 0))
-            except (sqlite3.DatabaseError, ValueError):
-                logger.warning("Building index is invalid; rebuilding %s", self.db_path)
-
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.db_path.with_suffix(".tmp.sqlite")
-        temporary.unlink(missing_ok=True)
-        with self._connect(temporary) as db:
+                    tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master")}
+                    columns = {row[1] for row in db.execute("PRAGMA table_info(districts)")}
+                if "last_used" in columns:
+                    return
+            except sqlite3.DatabaseError:
+                pass
+            # Indeks w starym formacie — powiaty pobiorą się ponownie.
+            logger.warning("Replacing building index without district table: %s", self.db_path)
+            self.db_path.unlink()
+        with self._connect(self.db_path) as db:
+            # Bez auto_vacuum plik nie maleje po usunięciu powiatów (patrz `prune`).
+            db.execute("PRAGMA auto_vacuum = FULL")
             db.executescript(
                 """
-                CREATE TABLE buildings (
+                CREATE TABLE IF NOT EXISTS buildings (
                     id INTEGER PRIMARY KEY,
                     source_id TEXT NOT NULL,
                     footprint TEXT NOT NULL,
                     ground_z_m REAL NOT NULL,
                     roof_z_m REAL NOT NULL,
                     height_m REAL NOT NULL,
-                    data_year TEXT
+                    data_year TEXT,
+                    district TEXT NOT NULL
                 );
-                CREATE VIRTUAL TABLE building_bounds USING rtree(
+                CREATE INDEX IF NOT EXISTS buildings_district ON buildings(district);
+                CREATE VIRTUAL TABLE IF NOT EXISTS building_bounds USING rtree(
                     id, min_x, max_x, min_y, max_y
                 );
-                CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS districts (
+                    code TEXT PRIMARY KEY,
+                    year TEXT NOT NULL,
+                    building_count INTEGER NOT NULL,
+                    indexed_at TEXT NOT NULL,
+                    last_used TEXT NOT NULL
+                );
                 """
             )
-            count = 0
-            for file_index, path in enumerate(files, start=1):
-                for source_id, footprint, ground, roof, height, year in iter_citygml(path):
+
+    @contextmanager
+    def lock(self) -> Iterator[None]:
+        """Blokada między procesami (kilka instancji backendu dzieli jeden indeks)."""
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.db_path.with_suffix(".lock"), "w") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle, fcntl.LOCK_UN)
+
+    def districts(self) -> set[str]:
+        self._ensure_schema()
+        with self._connect(self.db_path) as db:
+            return {row[0] for row in db.execute("SELECT code FROM districts")}
+
+    def add_district(self, code: str, year: str, sources: Iterable[Path | IO[bytes]]) -> int:
+        """Zastępuje budynki powiatu `code` budynkami z plików CityGML; zwraca ich liczbę."""
+        self._ensure_schema()
+        count = 0
+        with self._connect(self.db_path) as db:
+            self._remove_district(db, code)
+            for source in sources:
+                for source_id, footprint, ground, roof, height, data_year in iter_citygml(source):
                     count += 1
                     cursor = db.execute(
-                        "INSERT INTO buildings(source_id, footprint, ground_z_m, roof_z_m, height_m, data_year) "
-                        "VALUES (?, ?, ?, ?, ?, ?)",
-                        (source_id, json.dumps(footprint), ground, roof, height, year),
+                        "INSERT INTO buildings(source_id, footprint, ground_z_m, roof_z_m, height_m, "
+                        "data_year, district) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (source_id, json.dumps(footprint), ground, roof, height, data_year, code),
                     )
                     xs = [point[0] for point in footprint]
                     ys = [point[1] for point in footprint]
@@ -187,20 +217,46 @@ class BuildingIndex:
                         "INSERT INTO building_bounds VALUES (?, ?, ?, ?, ?)",
                         (cursor.lastrowid, min(xs), max(xs), min(ys), max(ys)),
                     )
-                if file_index % 20 == 0:
-                    db.commit()
-                    logger.info("Indexed CityGML files %s/%s", file_index, len(files))
-            db.executemany(
-                "INSERT INTO metadata(key, value) VALUES (?, ?)",
-                [
-                    ("newest_source_mtime_ns", str(newest_source)),
-                    ("building_count", str(count)),
-                    ("source_file_count", str(len(files))),
-                ],
+            now = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                "INSERT OR REPLACE INTO districts(code, year, building_count, indexed_at, last_used) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (code, year, count, now, now),
             )
-        temporary.replace(self.db_path)
-        logger.info("Built building index with %s objects at %s", count, self.db_path)
         return count
+
+    def _remove_district(self, db: sqlite3.Connection, code: str) -> None:
+        db.execute(
+            "DELETE FROM building_bounds WHERE id IN (SELECT id FROM buildings WHERE district = ?)",
+            (code,),
+        )
+        db.execute("DELETE FROM buildings WHERE district = ?", (code,))
+        db.execute("DELETE FROM districts WHERE code = ?", (code,))
+
+    def touch(self, codes: Iterable[str]) -> None:
+        """Zapisuje użycie powiatów (kolejność usuwania w `prune`)."""
+        self._ensure_schema()
+        now = datetime.now(timezone.utc).isoformat()
+        with self._connect(self.db_path) as db:
+            db.executemany("UPDATE districts SET last_used = ? WHERE code = ?", [(now, c) for c in codes])
+
+    def prune(self, max_bytes: int, keep: set[str]) -> list[str]:
+        """Usuwa najdawniej używane powiaty (poza `keep`), aż plik zmieści się w `max_bytes`."""
+        self._ensure_schema()
+        removed: list[str] = []
+        with self._connect(self.db_path) as db:
+            candidates = [
+                row[0]
+                for row in db.execute("SELECT code FROM districts ORDER BY last_used")
+                if row[0] not in keep
+            ]
+        for code in candidates:
+            if self.db_path.stat().st_size <= max_bytes:
+                break
+            with self._connect(self.db_path) as db:
+                self._remove_district(db, code)
+            removed.append(code)
+        return removed
 
     def query(self, min_x: float, max_x: float, min_y: float, max_y: float) -> list[Building]:
         if not self.db_path.exists():

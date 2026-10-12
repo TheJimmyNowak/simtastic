@@ -111,3 +111,17 @@ def test_transmissions_starting_in_same_cad_slot_collide() -> None:
     assert c.start == pytest.approx(0.005)
     assert m.outcome(a, "b") == OUTCOME_COLLISION
     assert m.outcome(c, "b") == OUTCOME_COLLISION
+
+
+def test_cancel_pending_removes_only_transmissions_not_yet_started() -> None:
+    from app.services.radio_medium import RadioMedium
+
+    medium = RadioMedium(sensitivity_dbm=-130.0, capture_threshold_db=6.0, spreading_factor=9, bandwidth_khz=250.0)
+    first = medium.place("b", 7, 0.0, 1.0, {"c": -80.0}, lambda: 0.05)
+    deferred = medium.place("c", 7, 0.1, 1.0, {"b": -80.0}, lambda: 0.05)
+    assert deferred.start == pytest.approx(1.05)
+    assert medium.cancel_pending("b", 7, heard_at=1.0) is None  # już nadana
+    assert medium.cancel_pending("c", 7, heard_at=first.end, origin=99) is None  # inny pakiet, to samo id
+    assert medium.cancel_pending("c", 7, heard_at=first.end) is deferred
+    assert deferred.cancelled
+    assert medium.busy_until("c", 1.2) is None

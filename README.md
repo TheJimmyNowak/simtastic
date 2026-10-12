@@ -14,8 +14,8 @@ Symulator sieci Meshtastic do badań **routingu i skalowalności** z modelem ł�
 ## Wymagania
 
 - Docker (z Docker Compose), Node.js 18+; Python 3.11+ tylko do testów i uruchamiania bez Dockera
-- Kafelki SRTM w `data/srtm_cache/` (N*.hgt)
-- Modele budynków LoD1 CityGML w `data/buildings_raw/` (dla modelu zabudowy)
+- Dostęp do internetu przy obliczaniu łączy: teren (NMT) i budynki LoD1 pobierane są na bieżąco
+  z usług GUGiK (tylko obszar Polski), bez ręcznego pobierania danych
 
 ## Uruchomienie
 
@@ -83,27 +83,31 @@ logi firmware: `docker logs sim-<scenariusz>-node-0`.
 3. **Start** — kontenery węzłów + RadioGateway.
 4. Opcjonalnie traffic: `scenarios/example_traffic.yaml` w `POST /start` z `{"traffic_config": "/app/scenarios/example_traffic.yaml"}`.
 
-### Budynki LoD1
+### Teren i budynki (dane GUGiK)
 
-`agl_m` jest wysokością masztu nad terenem albo nad dachem. Węzeł wewnątrz obrysu
-CityGML jest automatycznie montowany na dachu.
+Precompute pobiera dane sam, tylko dla obszaru scenariusza (`backend/app/services/propagation/gugik.py`):
 
-Dane to modele 3D budynków LoD1 z GUGiK (licencja CC BY 4.0), w paczkach powiatowych według
-kodu TERYT. Kod powiatu dla danego punktu podaje usługa WMS geoportalu (warstwa
-`Modele_3D_budynkow_LoD1_2024`, zapytanie GetFeatureInfo). W repozytorium są: jarosławski
-(1804), łańcucki (1810), przeworski (1814), rzeszowski (1816), Przemyśl (1862) i Rzeszów (1863).
-Kolejny powiat:
+- **Teren** — numeryczny model terenu GUGiK (siatka 1 m, sam grunt, bez roślinności i zabudowy)
+  z usługi `services.gugik.gov.pl/nmt` (`GetHByPointList`). Profil ITM próbkowany jest co
+  `terrain_profile_step_m` (30 m). Przy wielu węzłach na małym obszarze pobierana jest siatka
+  wysokości zamiast osobnych profili. Wysokości są trzymane tylko w pamięci procesu.
+- **Budynki** — modele 3D LoD1 z GUGiK (CC BY 4.0) w paczkach powiatowych. Powiaty, przez które
+  biegną łącza, wskazuje usługa PRG (WFS z granicami powiatów); paczka jest pobierana do pliku
+  tymczasowego, czytana prosto do indeksu `data/buildings/buildings.sqlite` i usuwana. Indeks ma
+  limit `buildings_index_max_mb` (500 MB) — po jego przekroczeniu usuwane są najdawniej
+  używane powiaty.
+
+Podgląd indeksu i ręczne odświeżenie powiatu (np. przed pracą offline):
 
 ```bash
-T=1863   # kod TERYT powiatu
-curl -LO https://opendata.geoportal.gov.pl/InneDane/Budynki3D/LOD1/2024/${T:0:2}/$T.zip
-mkdir -p data/buildings_raw/$T && unzip -j $T.zip -d data/buildings_raw/$T
-PYTHONPATH=backend python scripts/import_buildings.py --force
+PYTHONPATH=backend python scripts/import_buildings.py            # lista powiatów
+PYTHONPATH=backend python scripts/import_buildings.py 1863 1816  # pobierz / odśwież
 ```
 
-Precompute odświeża indeks automatycznie, gdy zmieni się zestaw plików. W środowisku
-scenariusza `building_model_enabled` steruje warstwą zabudowy, a
-`fresnel_clearance_ratio` określa wymaganą wolną część pierwszej strefy Fresnela.
+`agl_m` jest wysokością masztu nad terenem albo nad dachem. Węzeł wewnątrz obrysu budynku
+jest automatycznie montowany na dachu. W środowisku scenariusza `building_model_enabled`
+steruje warstwą zabudowy, a `fresnel_clearance_ratio` określa wymaganą wolną część pierwszej
+strefy Fresnela.
 
 ## Metryki Influx (routing)
 
@@ -144,7 +148,8 @@ PYTHONPATH=backend .venv/bin/python scripts/e2e_line_test.py
 
 Porównanie symulatora z siecią rzeczywistą na danych z [lorastats.pl](https://lorastats.pl/API).
 Kryteria wyboru węzłów i par opisuje [docs/validation_lorastats.md](docs/validation_lorastats.md),
-a przebieg i wyniki kampanii z 8.10.2026 [docs/test_campaign.md](docs/test_campaign.md).
+przebieg i wyniki kampanii z 8.10.2026 [docs/test_campaign.md](docs/test_campaign.md), a jej
+powtórzenie po przeglądzie metodyki (12.10.2026) [docs/test_campaign_v3.md](docs/test_campaign_v3.md).
 
 ```bash
 export PYTHONPATH=backend:scripts/validation
@@ -192,6 +197,9 @@ cd latex && latexmk        # PDF w latex/build/
 | `SIM_MESHTASTIC_TCP_TIMEOUT_S` | 120 | oczekiwanie na API węzła |
 | `SIM_MESH_CONNECT_TIMEOUT_S` | 90 | oczekiwanie na handshake Meshtastic |
 | `SIM_TRAFFIC_WARMUP_S` | 5 | pauza między startem węzłów a ruchem |
+| `TERRAIN_PROFILE_STEP_M` | 30 | odstęp próbek profilu terenu dla ITM |
+| `GUGIK_WORKERS` | 6 | równoległe zapytania do usług GUGiK |
+| `BUILDINGS_INDEX_MAX_MB` | 500 | limit indeksu budynków LoD1 |
 
 ## Powtarzalność eksperymentów
 
