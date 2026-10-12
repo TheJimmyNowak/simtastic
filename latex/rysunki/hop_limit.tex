@@ -1,0 +1,24 @@
+% Zmniejszanie limitu skoków przy retransmisjach (rozdział Warstwa logiczna)
+\begin{tikzpicture}[
+  font=\small,
+  wezel/.style={draw, circle, minimum size=10mm, fill=white},
+  strz/.style={-{Stealth[length=2.2mm]}, thick},
+  opis/.style={font=\footnotesize, align=center},
+]
+  \node[wezel] (A) at (0,0) {A};
+  \node[wezel] (B) at (2.9,0) {B};
+  \node[wezel] (C) at (5.8,0) {C};
+  \node[wezel] (D) at (8.7,0) {D};
+  \node[wezel] (E) at (11.6,0) {E};
+
+  \draw[strz] (A) -- node[opis, above] {HL = 3} (B);
+  \draw[strz] (B) -- node[opis, above] {HL = 2} (C);
+  \draw[strz] (C) -- node[opis, above] {HL = 1} (D);
+  \draw[strz] (D) -- node[opis, above] {HL = 0} (E);
+
+  \node[opis, below=2mm of A] {nadawca};
+  \node[opis, below=2mm of B] {retransmisja};
+  \node[opis, below=2mm of C] {retransmisja};
+  \node[opis, below=2mm of D] {retransmisja};
+  \node[opis, below=2mm of E] {brak\\retransmisji};
+\end{tikzpicture}

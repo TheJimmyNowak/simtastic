@@ -282,7 +282,7 @@
 	%\thispagestyle{empty}%strona nie jest numerowana
 Technologie radiowe rozwijają się w dynamicznym tempie, a wraz z nimi pojawiają się nowe rozwiązania wykorzystywane do budowy bezprzewodowych sieci komunikacyjnych. Jednym z przykładów jest technologia LoRa, wykorzystująca modulację o tej samej nazwie, która została wprowadzona na rynek w 2009 roku. Jej charakterystyczne cechy, takie jak duży zasięg transmisji przy niewielkim zużyciu energii, sprawiły, że znalazła zastosowanie między innymi w systemach Internetu Rzeczy oraz rozproszonych sieciach radiowych.
 
-W ostatnich latach rozwijane są również rozwiązania wykorzystujące LoRa do tworzenia rozproszonych sieci typu mesh, w których poszczególne urządzenia mogą pełnić jednocześnie funkcję nadawczą, odbiorczą oraz pośredniczyć w przekazywaniu danych pomiędzy innymi węzłami. Rozwiązania tego typu zaczęły zyskiwać na znaczeniu około 2020 roku, wraz z pojawieniem się pierwszych projektów umożliwiających budowę praktycznych sieci LoRa Mesh.
+W ostatnich latach rozwijane są również rozwiązania wykorzystujące LoRa do tworzenia rozproszonych sieci typu mesh, w których poszczególne urządzenia mogą pełnić jednocześnie funkcję nadawczą, odbiorczą oraz pośredniczyć w przekazywaniu danych pomiędzy innymi węzłami. Rozwiązania tego typu zaczęły zyskiwać na znaczeniu około 2020 roku, wraz z pojawieniem się pierwszych projektów umożliwiających budowę praktycznych sieci LoRa Mesh \cite{meshtastic_firmware}.
 
 Dynamiczny rozwój tego rodzaju sieci powoduje potrzebę opracowania narzędzi pozwalających na analizę ich funkcjonowania w różnych warunkach. Szczególnie istotna jest możliwość badania wpływu liczby i rozmieszczenia węzłów, parametrów transmisji oraz topologii sieci na jej wydajność i niezawodność. W tym celu przydatne są środowiska symulacyjne umożliwiające odwzorowanie zachowania sieci przed jej rzeczywistym wdrożeniem. Dostępność dedykowanych narzędzi pozwalających na symulację specyficznych mechanizmów współczesnych sieci LoRa Mesh jest jednak ograniczona, co stanowi podstawę do podjęcia niniejszego tematu.
 
@@ -292,12 +292,12 @@ Zakres pracy obejmuje:
 \begin{itemize}
 \item omówienie podstaw transmisji LoRa, modeli propagacji oraz mechanizmów warstwy logicznej sieci Meshtastic,
 \item przegląd istniejących narzędzi do symulacji sieci LoRa,
-\item projekt i implementację symulatora, obejmującego model łączy oparty na modelu Longley-Rice i danych o budynkach, model współdzielenia kanału, uruchamianie węzłów w kontenerach Docker, interfejs użytkownika z mapą oraz zapis śladu symulacji,
+\item projekt i implementację symulatora, obejmującego model łączy oparty na modelu Longley-Rice i danych o budynkach, model współdzielenia kanału, uruchamianie węzłów w kontenerach Docker, interfejs użytkownika z mapą oraz zapis logu symulacji,
 \item kalibrację modelu łączy na danych z polskiej sieci Meshtastic oraz ocenę modelu łączy i routingu na niezależnym zbiorze danych,
 \item sprawdzenie modelu współdzielenia kanału, powtarzalności wyników i skalowalności symulatora.
 \end{itemize}
 
-Praca składa się z czterech rozdziałów. W rozdziale pierwszym przedstawiono podstawy modulacji LoRa, zależności pomiędzy parametrami transmisji, budżet łącza radiowego oraz modele strat ścieżki, w tym model Longley-Rice. Rozdział drugi dotyczy warstwy logicznej sieci LoRa Mesh: opisano w nim rozwiązania Meshtastic i MeshCore, zasady routingu i role węzłów w sieci Meshtastic, problemy związane z symulacją takich sieci oraz istniejące narzędzia symulacyjne. W rozdziale trzecim opisano implementację symulatora: jego architekturę, konfigurację węzłów, obliczanie łączy, odwzorowanie eteru, model kolizji oraz generowanie ruchu. Rozdział czwarty przedstawia weryfikację symulatora na danych z działającej sieci, obejmującą kalibrację modelu łączy, ocenę modelu łączy i routingu, testy współdzielenia kanału i skalowalności. Pracę zamyka podsumowanie uzyskanych wyników wraz z ograniczeniami symulatora i kierunkami dalszych prac.
+Praca składa się z czterech rozdziałów. Rozdział pierwszy przedstawia podstawy transmisji LoRa i modelowania strat ścieżki, a rozdział drugi warstwę logiczną sieci Meshtastic oraz istniejące narzędzia symulacyjne. W rozdziale trzecim opisano implementację symulatora, a w rozdziale czwartym jego weryfikację na danych z działającej sieci. Pracę zamyka podsumowanie wyników wraz z ograniczeniami symulatora i kierunkami dalszych prac.
 	
     \cleardoublepage %
 
@@ -318,6 +318,8 @@ LoRa jest autorską techniką modulacji opatentowaną przez firmę Semtech, stos
 \section{Wpływ doboru parametrów na szybkość transmisji}
 
 Jednym z istotnych zagadnień podczas projektowania sieci LoRa jest dobór parametrów transmisji, ponieważ mają one bezpośredni wpływ na szybkość przesyłania danych, czas zajęcia kanału oraz zasięg łączności. Do najważniejszych parametrów należą szerokość pasma (\(BW\)), współczynnik rozpraszania (\(SF\)) oraz współczynnik kodowania (\(CR\)).
+
+Modulacja LoRa jest odmianą modulacji z widmem rozproszonym z wykorzystaniem świergotów (ang. \textit{Chirp Spread Spectrum}, CSS). Symbolem jest w niej pojedynczy świergot, czyli sygnał, którego częstotliwość zmienia się liniowo w obrębie całego pasma \(BW\). Informację niesie przesunięcie częstotliwości początkowej świergotu, które może przyjąć jedną z \(2^{SF}\) wartości, dzięki czemu jeden symbol przenosi \(SF\) bitów \cite{semtech_an1200_22}.
 
 Szybkość symbolowa w modulacji LoRa określana jest zależnością:
 
@@ -390,7 +392,7 @@ Tłumienie w wolnej przestrzeni można wyznaczyć na podstawie częstotliwości 
 
 gdzie \(d\) oznacza odległość pomiędzy urządzeniami wyrażoną w kilometrach, a \(f\) częstotliwość w megahercach.
 
-W rzeczywistym środowisku propagacja sygnału jest bardziej złożona niż model wolnej przestrzeni. Na poziom odbieranego sygnału wpływają między innymi przeszkody terenowe i zabudowa, odbicia, wielodrogowość, warunki atmosferyczne oraz niedopasowanie polaryzacji anten. Z tego powodu w praktycznych obliczeniach należy uwzględnić dodatkowy margines lub straty propagacyjne oznaczone jako \(L_M\).
+W rzeczywistym środowisku propagacja sygnału jest bardziej złożona niż model wolnej przestrzeni. Na poziom odbieranego sygnału wpływają między innymi przeszkody terenowe i zabudowa, odbicia, wielodrogowość, warunki atmosferyczne oraz niedopasowanie polaryzacji anten. Z tego powodu w praktycznych obliczeniach należy uwzględnić dodatkowy margines lub straty propagacyjne oznaczone jako \(L_M\) \cite{rappaport2002}.
 
 Istotnym elementem budżetu łącza jest również zastosowany sprzęt. Zwiększenie mocy nadajnika bezpośrednio zwiększa moc sygnału docierającego do odbiornika, jednak jego wpływ na zasięg nie jest liniowy. Przykładowo zwiększenie mocy nadajnika z 1 W do 2 W oznacza wzrost mocy o około 3 dB, a nie dwukrotne zwiększenie zasięgu. Z punktu widzenia budżetu łącza taki wzrost odpowiada jedynie dodaniu 3 dB do bilansu energetycznego.
 
@@ -410,7 +412,7 @@ Właściwy dobór elementów sprzętowych może zatem znacząco wpłynąć na rz
 
 Straty ścieżki (ang. \textit{path loss}) określają zmniejszenie mocy sygnału radiowego podczas jego propagacji pomiędzy nadajnikiem a odbiornikiem. Ich wartość zależy między innymi od częstotliwości, odległości pomiędzy urządzeniami, wysokości anten oraz charakterystyki środowiska, w którym odbywa się transmisja. Dokładne określenie strat propagacyjnych jest istotnym elementem modelowania sieci radiowych, ponieważ bezpośrednio wpływa na przewidywany poziom sygnału odbieranego przez poszczególne węzły.
 
-Modele strat ścieżki można podzielić na trzy podstawowe grupy: modele statystyczne, deterministyczne oraz hybrydowe (półempiryczne). Modele statystyczne opracowywane są na podstawie wyników pomiarów przeprowadzonych w określonym środowisku. Ich zaletą jest stosunkowo niewielka złożoność obliczeniowa, jednak ich dokładność może znacząco zmniejszać się w przypadku zastosowania w środowisku różniącym się od tego, dla którego zostały opracowane.
+Modele strat ścieżki można podzielić na trzy podstawowe grupy: modele statystyczne, deterministyczne oraz hybrydowe (półempiryczne) \cite{neskovic2000}. Modele statystyczne opracowywane są na podstawie wyników pomiarów przeprowadzonych w określonym środowisku. Ich zaletą jest stosunkowo niewielka złożoność obliczeniowa, jednak ich dokładność może znacząco zmniejszać się w przypadku zastosowania w środowisku różniącym się od tego, dla którego zostały opracowane.
 
 Modele deterministyczne wykorzystują fizyczne prawa opisujące propagację fal radiowych. Uwzględniają między innymi geometrię obszaru, przeszkody znajdujące się pomiędzy nadajnikiem i odbiornikiem oraz zjawiska takie jak odbicie, dyfrakcja czy rozpraszanie. Pozwalają dzięki temu dokładniej odwzorować rzeczywiste warunki propagacji, jednak zazwyczaj wymagają większej liczby danych wejściowych i większej mocy obliczeniowej.
 
@@ -432,7 +434,7 @@ W niniejszej pracy do modelowania strat propagacyjnych wykorzystano model Longle
 
 Wybór modelu Longley-Rice pozwala również zachować rozsądny kompromis pomiędzy dokładnością odwzorowania warunków propagacyjnych a złożonością obliczeniową symulatora. Jest to szczególnie istotne w przypadku sieci mesh, w których liczba potencjalnych połączeń pomiędzy węzłami rośnie wraz z liczbą urządzeń. Dla każdej pary węzłów możliwe jest wyznaczenie strat propagacyjnych, a następnie, na podstawie mocy nadajnika, zysków anten oraz czułości odbiornika, określenie możliwości nawiązania połączenia radiowego.
 
-Otrzymana wartość strat propagacyjnych może zostać następnie wykorzystana w obliczeniach budżetu łącza ze wzoru~\eqref{linkbudget}. W pracy wykorzystano gotową implementację modelu w bibliotece itmlogic \cite{oughton2020}, a profil terenu wyznaczany jest na podstawie numerycznego modelu terenu Shuttle Radar Topography Mission (SRTM) \cite{farr2007}.
+Otrzymana wartość strat propagacyjnych może zostać następnie wykorzystana w obliczeniach budżetu łącza ze wzoru~\eqref{linkbudget}. W pracy wykorzystano gotową implementację modelu w bibliotece itmlogic \cite{oughton2020}, a profil terenu wyznaczany jest na podstawie numerycznego modelu terenu Shuttle Radar Topography Mission (SRTM) \cite{farr2007}. Model Longley-Rice nie uwzględnia pojedynczych budynków, dlatego w symulatorze uzupełniono go o stratę dyfrakcyjną na zabudowie, wyznaczaną na podstawie modeli budynków LoD1 udostępnianych przez Główny Urząd Geodezji i Kartografii \cite{gugik_lod1}. Sposób jej wyznaczania opisano w rozdziale~\ref{chap:implementacja}.
 
 \cleardoublepage
 \chapter{Warstwa logiczna sieci LoRa Mesh}
@@ -443,17 +445,24 @@ Otrzymana wartość strat propagacyjnych może zostać następnie wykorzystana w
     \section{Popularne rozwiązania LoRa Mesh}
     Rozwój praktycznych rozwiązań wykorzystujących sieci LoRa Mesh w ostatnich latach doprowadził do powstania kilku otwartych projektów, które umożliwiają budowę zdecentralizowanych sieci komunikacyjnych bez wykorzystania infrastruktury operatorów telekomunikacyjnych. Do najpopularniejszych współczesnych rozwiązań należą przede wszystkim Meshtastic oraz MeshCore.
     
-    Meshtastic jest otwartym projektem rozwijanym z myślą o komunikacji poza zasięgiem tradycyjnych sieci telekomunikacyjnych. Wykorzystuje urządzenia wyposażone w moduły LoRa do tworzenia zdecentralizowanej sieci, w której węzły mogą przekazywać informacje pomiędzy sobą. System umożliwia między innymi przesyłanie krótkich wiadomości tekstowych, informacji o położeniu oraz danych telemetrycznych. Istotną cechą rozwiązania jest możliwość korzystania z sieci bez dostępu do Internetu, sieci komórkowej lub innych elementów infrastruktury zewnętrznej.
+    Meshtastic jest otwartym projektem rozwijanym z myślą o komunikacji poza zasięgiem tradycyjnych sieci telekomunikacyjnych. Wykorzystuje urządzenia wyposażone w moduły LoRa do tworzenia zdecentralizowanej sieci, w której węzły mogą przekazywać informacje pomiędzy sobą. System umożliwia między innymi przesyłanie krótkich wiadomości tekstowych, informacji o położeniu oraz danych telemetrycznych. Istotną cechą rozwiązania jest możliwość korzystania z sieci bez dostępu do Internetu, sieci komórkowej lub innych elementów infrastruktury zewnętrznej \cite{meshtastic_intro}.
     
-    Drugim rozwijanym rozwiązaniem jest MeshCore, które koncentruje się na budowie zdecentralizowanej infrastruktury komunikacyjnej wykorzystującej LoRa. W architekturze MeshCore występują między innymi urządzenia użytkowników oraz węzły pełniące funkcję przekaźników, umożliwiające zwiększenie zasięgu sieci poprzez wielokrotne przekazywanie danych. Projekt rozwija również rozwiązania pozwalające na pracę urządzeń jako samodzielnych komunikatorów oraz integrację z aplikacjami działającymi na komputerach i urządzeniach mobilnych.
+    Drugim rozwijanym rozwiązaniem jest MeshCore, które koncentruje się na budowie zdecentralizowanej infrastruktury komunikacyjnej wykorzystującej LoRa. W architekturze MeshCore występują między innymi urządzenia użytkowników oraz węzły pełniące funkcję przekaźników, umożliwiające zwiększenie zasięgu sieci poprzez wielokrotne przekazywanie danych. Projekt rozwija również rozwiązania pozwalające na pracę urządzeń jako samodzielnych komunikatorów oraz integrację z aplikacjami działającymi na komputerach i urządzeniach mobilnych \cite{meshcore}.
     
     Oba rozwiązania wykorzystują tę samą podstawową technologię transmisji radiowej, jednak różnią się zastosowanymi mechanizmami warstwy logicznej, sposobem przekazywania pakietów oraz organizacją poszczególnych rodzajów węzłów. Niniejsza praca dotyczy sieci Meshtastic, która jest obecnie najbardziej rozpowszechnionym z tych rozwiązań i dla której dostępne są publiczne dane z działającej sieci, wykorzystane w rozdziale~\ref{chap:weryfikacja} do weryfikacji symulatora. W dalszej części pracy przedstawiono mechanizmy warstwy logicznej sieci Meshtastic.
     
     \section{Podstawowe zasady działania routingu w sieciach Meshtastic}
 
-    Routing w sieci Meshtastic opiera się na zdecentralizowanym przekazywaniu pakietów pomiędzy węzłami znajdującymi się we wzajemnym zasięgu radiowym. W przeciwieństwie do klasycznych sieci, w których stosuje się topologię gwiazdy (np. w LoRaWAN), w Meshtastic poszczególne urządzenia samodzielnie podejmują decyzję o przekazaniu odebranego pakietu. Pozwala to na tworzenie sieci, których działanie nie jest uzależnione od pojedynczego punktu infrastruktury.
+    Routing w sieci Meshtastic opiera się na zdecentralizowanym przekazywaniu pakietów pomiędzy węzłami znajdującymi się we wzajemnym zasięgu radiowym. W przeciwieństwie do klasycznych sieci, w których stosuje się topologię gwiazdy (np. w LoRaWAN \cite{lorawan104}), w Meshtastic poszczególne urządzenia samodzielnie podejmują decyzję o przekazaniu odebranego pakietu. Pozwala to na tworzenie sieci, których działanie nie jest uzależnione od pojedynczego punktu infrastruktury.
     
-    Węzeł wysyłający wiadomość nie musi znajdować się bezpośrednio w zasięgu urządzenia docelowego. Pakiet może zostać przekazany przez kolejne węzły, dzięki czemu komunikacja jest możliwa również pomiędzy urządzeniami oddalonymi od siebie o więcej niż jeden skok (ang. \textit{hop}). Liczba możliwych przekazań pakietu ograniczana jest limitem skoków (ang. \textit{hop limit}), zmniejszanym przy każdej retransmisji. Mechanizm ten, analogiczny do pola TTL (ang. \textit{Time To Live}) w sieciach IP, zapobiega nieograniczonemu krążeniu pakietów w sieci.
+    Węzeł wysyłający wiadomość nie musi znajdować się bezpośrednio w zasięgu urządzenia docelowego. Pakiet może zostać przekazany przez kolejne węzły, dzięki czemu komunikacja jest możliwa również pomiędzy urządzeniami oddalonymi od siebie o więcej niż jeden skok (ang. \textit{hop}). Liczba możliwych przekazań pakietu ograniczana jest limitem skoków (ang. \textit{hop limit}), zmniejszanym przy każdej retransmisji. Mechanizm ten, analogiczny do pola TTL (ang. \textit{Time To Live}) w sieciach IP, zapobiega nieograniczonemu krążeniu pakietów w sieci. Przykład przekazywania pakietu z limitem skoków równym 3 przedstawiono na rysunku~\ref{rys:hop_limit}.
+
+    \begin{figure}[ht]
+    \centering
+    \input{rysunki/hop_limit}
+    \caption{Zmniejszanie limitu skoków (HL) przy kolejnych retransmisjach pakietu}
+    \label{rys:hop_limit}
+    \end{figure}
     
     Istotnym elementem routingu Meshtastic jest mechanizm zarządzania retransmisjami. Węzły mogą przekazywać odebrane pakiety dalej, jednak nie każdy odebrany pakiet musi zostać ponownie wysłany. Decyzja o retransmisji zależy między innymi od rodzaju pakietu, jego parametrów oraz informacji posiadanych przez dany węzeł. Wykorzystywane są również mechanizmy pozwalające ograniczyć wielokrotne przekazywanie tego samego pakietu przez różne węzły.
     
@@ -515,19 +524,19 @@ Dodatkowym utrudnieniem jest ciągły rozwój samego protokołu. W działającej
 
 \section{Istniejące narzędzia symulacyjne}
 
-Dostępne narzędzia do symulacji sieci LoRa można podzielić na trzy grupy: symulatory sieci LoRaWAN o topologii gwiazdy, narzędzia przeznaczone dla sieci Meshtastic oraz narzędzia do planowania zasięgu pojedynczych stacji.
+Dostępne narzędzia do symulacji sieci LoRa można podzielić na trzy grupy: symulatory sieci LoRaWAN o topologii gwiazdy, symulatory sieci Meshtastic oraz narzędzia do planowania zasięgu pojedynczych stacji.
 
 \subsection{Symulatory sieci LoRaWAN}
 
 Jednym z pierwszych i najczęściej wykorzystywanych symulatorów jest LoRaSim, opracowany przez Bora i współautorów \cite{bor2016}. Jest to symulator zdarzeń dyskretnych napisany w języku Python, przeznaczony do badania skalowalności sieci LoRa. Straty propagacyjne opisywane są modelem logarytmicznym zależnym od odległości, a o kolizji dwóch pakietów decydują ich częstotliwość, współczynnik rozpraszania, wzajemne położenie w czasie oraz różnica mocy, co pozwala odwzorować efekt przechwycenia. Reguły kolizji z LoRaSim zostały przejęte przez wiele późniejszych narzędzi, w tym przez symulator opracowany w niniejszej pracy.
 
-Moduł LoRaWAN dla symulatora ns-3, opracowany na Uniwersytecie w Padwie \cite{magrin2017}, odwzorowuje pełny stos protokołu LoRaWAN: urządzenia końcowe klasy A, bramki z modelem układu odbiorczego obsługującego wiele kanałów jednocześnie oraz serwer sieciowy z mechanizmem adaptacyjnego doboru szybkości transmisji (ADR). Zawiera modele propagacji przeznaczone dla środowiska miejskiego oraz model zużycia energii. Autorzy wykorzystali go do pokazania, że sieć LoRaWAN obejmująca kilka bramek może obsługiwać rzędu \(10^4\) urządzeń. Podobny zakres funkcji oferuje FLoRa \cite{slabicki2018}, oparta na symulatorze OMNeT++ i bibliotece INET, która umożliwia symulację sieci od urządzenia końcowego do serwera sieciowego, wraz z mechanizmem ADR i bilansem energii węzłów.
+Moduł LoRaWAN dla symulatora ns-3, opracowany na Uniwersytecie w Padwie \cite{magrin2017}, odwzorowuje pełny stos protokołu LoRaWAN: urządzenia końcowe klasy A, bramki z modelem układu odbiorczego obsługującego wiele kanałów jednocześnie oraz serwer sieciowy z mechanizmem adaptacyjnego doboru szybkości transmisji (ADR). Zawiera modele propagacji przeznaczone dla środowiska miejskiego oraz model zużycia energii. Autorzy wykorzystali go do pokazania, że sieć LoRaWAN obejmująca kilka bramek może obsłużyć \(10^4\) urządzeń. Podobny zakres funkcji oferuje FLoRa \cite{slabicki2018}, oparta na symulatorze OMNeT++ i bibliotece INET, która umożliwia symulację sieci od urządzenia końcowego do serwera sieciowego, wraz z mechanizmem ADR i bilansem energii węzłów.
 
 Narzędzia te dotyczą jednak sieci o topologii gwiazdy, w której urządzenia komunikują się bezpośrednio z bramkami, a pakiety nie są przekazywane pomiędzy urządzeniami. Nie odwzorowują więc retransmisji, limitu skoków ani mechanizmów charakterystycznych dla sieci mesh.
 
-\subsection{Meshtasticator}
+\subsection{Symulatory sieci Meshtastic}
 
-Narzędziem przeznaczonym bezpośrednio dla sieci Meshtastic jest Meshtasticator, rozwijany w ramach projektu Meshtastic \cite{meshtasticator}. Udostępnia on dwa tryby pracy.
+Jedynym dostępnym narzędziem do symulacji sieci Meshtastic jest Meshtasticator, rozwijany w ramach projektu Meshtastic \cite{meshtasticator}. Udostępnia on dwa tryby pracy.
 
 Tryb symulacji zdarzeń dyskretnych odtwarza w języku Python działanie części radiowej oprogramowania węzła. Jego kod wywodzi się z symulatora LoRaSim. Zaimplementowano w nim między innymi zasady rozgłaszania pakietów (pakiet jest retransmitowany, jeżeli jego limit skoków jest większy od zera, a węzeł nie usłyszał wcześniej retransmisji tego pakietu), losowe lub zależne od SNR opóźnienia nadania oraz retransmisje w przypadku braku niejawnego potwierdzenia. Takie podejście pozwala szybko symulować duże sieci, jednak wymaga ponownej implementacji mechanizmów oprogramowania, które zmieniają się wraz z kolejnymi jego wersjami.
 
@@ -565,7 +574,7 @@ Symulator z niniejszej pracy & mesh & oprogramowanie Meshtastic & ITM, teren SRT
 Żadne z dostępnych narzędzi nie łączy rzeczywistego oprogramowania węzłów sieci mesh z modelem propagacji uwzględniającym ukształtowanie terenu i zabudowę. Symulatory LoRaWAN nie odwzorowują przekazywania pakietów pomiędzy węzłami, Meshtasticator nie pozwala odtworzyć sieci na rzeczywistym terenie, a Meshtastic Site Planner nie symuluje działania sieci. W dokumentacji tych narzędzi nie opisano również porównania wyników z danymi z działającej sieci Meshtastic. Symulator opracowany w niniejszej pracy wykorzystuje ten sam mechanizm symulowanego modułu radiowego co tryb interaktywny Meshtasticatora, opisany w kolejnej sekcji. Rozszerza go o model propagacji Longley-Rice z danymi o terenie i budynkach, model współdzielenia kanału realizowany poza oprogramowaniem węzła, rozmieszczanie węzłów na mapie oraz kalibrację na danych z rzeczywistej sieci.
 
 \section{Symulacja węzła z użyciem meshtasticd}
-\texttt{meshtasticd} jest wersją oprogramowania Meshtastic przeznaczoną dla komputerów z systemem Linux lub macOS, wyposażonych w moduł radiowy LoRa podłączony przez interfejs SPI lub USB. Zawiera ona moduł SimRadio, który zastępuje fizyczny moduł radiowy. Pozwala to uruchomić węzeł bez żadnego sprzętu radiowego, w izolowanym środowisku, na przykład w kontenerze Docker, a jego transmisje przekazywać do zewnętrznego programu przez interfejs TCP.
+\texttt{meshtasticd} jest wersją oprogramowania Meshtastic przeznaczoną dla komputerów z systemem Linux lub macOS, wyposażonych w moduł radiowy LoRa podłączony przez interfejs SPI lub USB \cite{meshtasticd_docs}. Zawiera ona moduł SimRadio, który zastępuje fizyczny moduł radiowy \cite{meshtastic_firmware}. Pozwala to uruchomić węzeł bez żadnego sprzętu radiowego, w izolowanym środowisku, na przykład w kontenerze Docker, a jego transmisje przekazywać do zewnętrznego programu przez interfejs TCP.
 
 \cleardoublepage
 \input{rozdzialy/implementacja}
@@ -591,15 +600,22 @@ Symulator z niniejszej pracy & mesh & oprogramowanie Meshtastic & ITM, teren SRT
     \bibitem{hata1980} M. Hata, „Empirical formula for propagation loss in land mobile radio services”, \emph{IEEE Transactions on Vehicular Technology}, vol. 29, nr 3, s. 317--325, 1980, doi: 10.1109/T-VT.1980.23859.
     \bibitem{cost231} European Commission, DG XIII, \emph{COST Action 231: Digital mobile radio towards future generation systems. Final report}, Bruksela, 1999, ISBN 92-828-5416-7.
     \bibitem{longley1968} A. G. Longley, P. L. Rice, \emph{Prediction of tropospheric radio transmission loss over irregular terrain. A computer method -- 1968}, ESSA Technical Report ERL 79-ITS 67, U.S. Department of Commerce, Environmental Science Services Administration, Boulder, lipiec 1968, doi: 10.70220/d3k87mv1.
+    \bibitem{hufford1982} G. A. Hufford, A. G. Longley, W. A. Kissick, \emph{A Guide to the Use of the ITS Irregular Terrain Model in the Area Prediction Mode}, NTIA Report 82-100, U.S. Department of Commerce, National Telecommunications and Information Administration, kwiecień 1982.
     \bibitem{oughton2020} E. Oughton, T. Russell, J. Johnson, C. Yardim, J. Kusuma, „itmlogic: The Irregular Terrain Model by Longley and Rice”, \emph{Journal of Open Source Software}, vol. 5, nr 51, art. 2266, 2020, doi: 10.21105/joss.02266.
+    \bibitem{rappaport2002} T. S. Rappaport, \emph{Wireless Communications: Principles and Practice}, wyd. 2, Prentice Hall, Upper Saddle River, 2002.
+    \bibitem{neskovic2000} A. Nešković, N. Nešković, G. Paunović, „Modern approaches in modeling of mobile radio systems propagation environment”, \emph{IEEE Communications Surveys}, vol. 3, nr 3, s. 2--12, 2000, doi: 10.1109/COMST.2000.5340727.
     \bibitem{farr2007} T. G. Farr i in., „The Shuttle Radar Topography Mission”, \emph{Reviews of Geophysics}, vol. 45, nr 2, RG2004, 2007, doi: 10.1029/2005RG000183.
     \bibitem{meshtastic_device} Meshtastic, \emph{Device Configuration}. Dostępne online: \url{https://meshtastic.org/docs/configuration/radio/device/} [dostęp: 03.09.2026].
+    \bibitem{meshtastic_intro} Meshtastic, \emph{Introduction}. Dostępne online: \url{https://meshtastic.org/docs/introduction/} [dostęp: 11.10.2026].
+    \bibitem{meshcore} MeshCore, \emph{MeshCore -- lightweight multi-hop LoRa mesh}. Dostępne online: \url{https://github.com/meshcore-dev/MeshCore} [dostęp: 11.10.2026].
+    \bibitem{lorawan104} LoRa Alliance, \emph{LoRaWAN L2 1.0.4 Specification (TS001-1.0.4)}, październik 2020.
     \bibitem{bor2016} M. Bor, U. Roedig, T. Voigt, J. M. Alonso, „Do LoRa Low-Power Wide-Area Networks Scale?”, w: \emph{Proceedings of the 19th ACM International Conference on Modeling, Analysis and Simulation of Wireless and Mobile Systems (MSWiM '16)}, ACM, s. 59--67, 2016, doi: 10.1145/2988287.2989163.
     \bibitem{magrin2017} D. Magrin, M. Centenaro, L. Vangelista, „Performance evaluation of LoRa networks in a smart city scenario”, w: \emph{2017 IEEE International Conference on Communications (ICC)}, Paryż, s. 1--7, 2017, doi: 10.1109/ICC.2017.7996384.
     \bibitem{slabicki2018} M. Slabicki, G. Premsankar, M. Di Francesco, „Adaptive configuration of LoRa networks for dense IoT deployments”, w: \emph{NOMS 2018 -- IEEE/IFIP Network Operations and Management Symposium}, Taipei, s. 1--9, 2018, doi: 10.1109/NOMS.2018.8406255.
     \bibitem{meshtasticator} Meshtastic, \emph{Meshtasticator -- Discrete-event and interactive simulator for Meshtastic}. Dostępne online: \url{https://github.com/meshtastic/Meshtasticator} [dostęp: 09.10.2026].
     \bibitem{site_planner} Meshtastic, \emph{Meshtastic Site Planner}. Dostępne online: \url{https://github.com/meshtastic/meshtastic-site-planner} [dostęp: 09.10.2026].
     \bibitem{splat} J. A. Magliacane, \emph{SPLAT! An RF Signal Propagation, Loss, And Terrain analysis tool}, wersja 1.4.2. Dostępne online: \url{https://www.qsl.net/kd2bd/splat.html} [dostęp: 09.10.2026].
+    \bibitem{meshtasticd_docs} Meshtastic, \emph{meshtasticd -- Linux Native}. Dostępne online: \url{https://meshtastic.org/docs/meshtasticd/} [dostęp: 11.10.2026].
     \bibitem{fastapi} S. Ramírez, \emph{FastAPI}. Dostępne online: \url{https://fastapi.tiangolo.com/} [dostęp: 09.10.2026].
     \bibitem{leaflet} V. Agafonkin i in., \emph{Leaflet -- an open-source JavaScript library for interactive maps}. Dostępne online: \url{https://leafletjs.com/} [dostęp: 09.10.2026].
     \bibitem{influxdb} InfluxData, \emph{InfluxDB 2 Documentation}. Dostępne online: \url{https://docs.influxdata.com/influxdb/v2/} [dostęp: 09.10.2026].
